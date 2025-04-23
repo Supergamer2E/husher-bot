@@ -21,6 +21,12 @@ const client = new Client({
     partials: [Partials.Message, Partials.Channel, Partials.GuildMember]
 });
 
+function formatTime(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 // Utilities
 const userTimeouts = {};
 let currentDate = new Date().toDateString();
@@ -107,8 +113,8 @@ client.on('interactionCreate', async interaction => {
             success = false;
         }
 
-        const channel = interaction.guild.channels.cache.find(c => c.name === 'timeouts');
-const announcementChannel = interaction.guild.channels.cache.find(c => c.name === 'husher-announcements');
+        const announcementChannel = interaction.guild.channels.cache.find(c => c.name === 'husher-announcements');
+
         const embed = new EmbedBuilder()
             .setTitle(success ? `🔇 ${target.tag} has been hushed!` : `⚠️ Tried to hush ${target.tag}`)
             .setDescription(
@@ -118,30 +124,46 @@ const announcementChannel = interaction.guild.channels.cache.find(c => c.name ==
                 `**Offense Count Today:** ${offenses}`
             )
             .setColor(success ? 'Blue' : 'Orange')
-            .setTimestamp();        
-            if (channel) await channel.send({ embeds: [embed] });
-if (announcementChannel) await announcementChannel.send({ embeds: [embed] });
+            .setTimestamp();
+
+        if (announcementChannel) await announcementChannel.send({ embeds: [embed] });
 
         interaction.reply({ content: `✅ Hushed ${target.tag} for ${duration / 60000} mins.`, ephemeral: true });
 
-        let timeLeft = duration / 1000;
-        const comebackMessages = [
-            "🧙 {user} has returned from the Forbidden Section of chat.",
-            "💬 {user} can speak again. The silence was nice.",
-            "🛏️ {user} has left the timeout dimension.",
-            "🎮 {user} has re-entered the game.",
-            "🔔 {user} has been released. Try to behave... maybe."
-        ].concat(loadCustomComebacks());
+        // Live countdown
+        if (success && announcementChannel) {
+            let timeLeft = duration / 1000;
+            const comebackMessages = [
+                "🧙 {user} has returned from the Forbidden Section of chat.",
+                "💬 {user} can speak again. The silence was nice.",
+                "🛏️ {user} has left the timeout dimension.",
+                "🎮 {user} has re-entered the game.",
+                "🔔 {user} has been released. Try to behave... maybe."
+            ].concat(loadCustomComebacks());
 
-        const interval = setInterval(async () => {
-            timeLeft -= 60;
-            if (timeLeft <= 0) {
-                clearInterval(interval);
-                const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)].replace('{user}', `<@${target.id}>`);
-                if (channel) await channel.send(msg);
-if (announcementChannel) await announcementChannel.send(msg);
-            }
-        }, 60000);
+            const timerMessage = await announcementChannel.send(`⏳ <@${member.id}> is in timeout for ${formatTime(timeLeft)}`);
+            const interval = setInterval(async () => {
+                timeLeft--;
+                if (timeLeft > 0) {
+                    try {
+                        await timerMessage.edit(`⏳ <@${member.id}> has ${formatTime(timeLeft)} remaining...`);
+                    } catch (e) {
+                        console.error("Failed to edit timer message:", e.message);
+                        clearInterval(interval);
+                    }
+                } else {
+                    clearInterval(interval);
+                    try {
+                        await timerMessage.delete();
+                    } catch (e) {
+                        console.warn("Couldn't delete timer message:", e.message);
+                    }
+                    const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)]
+                        .replace('{user}', `<@${member.id}>`);
+                    await announcementChannel.send(msg);
+                }
+            }, 1000);
+        }
     }
 
     if (commandName === 'reset-hushes') {
@@ -182,6 +204,7 @@ if (announcementChannel) await announcementChannel.send(msg);
     }
 });
 
+
 client.on('messageCreate', async message => {
     if (!spell || message.author.bot || !message.guild || message.channel.name !== 'general') return;
     if (message.content.startsWith('/') || message.content.startsWith('t!') || message.content.startsWith('t@')) return;
@@ -205,49 +228,58 @@ client.on('messageCreate', async message => {
                 success = false;
             }
 
-            const channel = message.guild.channels.cache.find(c => c.name === 'timeouts');
             const announcementChannel = message.guild.channels.cache.find(c => c.name === 'husher-announcements');
 
             const embed = new EmbedBuilder()
                 .setTitle(success ? `🔇 ${message.author.tag} auto-hushed!` : `⚠️ Tried to hush ${message.author.tag}`)
-                .setDescription(
-                    `**Mistake:** \`${word}\`\n` +
-                    `**Suggestion:** ${correction}\n` +
-                    `**Message:** ${message.content}\n` +
-                    `**Offense Count:** ${offenses}`
-                )
+                .setDescription(`**Mistake:** \`${word}\`\n**Suggestion:** ${correction}\n**Message:** ${message.content}\n**Offense Count:** ${offenses}`)
                 .setColor(success ? 'Red' : 'Orange')
                 .setTimestamp();
 
-            if (channel) await channel.send({ embeds: [embed] });
             if (announcementChannel) await announcementChannel.send({ embeds: [embed] });
 
             message.reply({ content: `🚨 Spelling mistake: \`${word}\` → \`${correction}\``, ephemeral: true });
 
-            // ⏳ Live timer + comeback
-            let timeLeft = duration / 1000;
-            const comebackMessages = [
-                "🧙 {user} has returned from the Forbidden Section of chat.",
-                "💬 {user} can speak again. The silence was nice.",
-                "🛏️ {user} has left the timeout dimension.",
-                "🎮 {user} has re-entered the game.",
-                "🔔 {user} has been released. Try to behave... maybe."
-            ].concat(loadCustomComebacks());
+            // Live countdown message
+            if (success && announcementChannel) {
+                let timeLeft = duration / 1000;
+                const comebackMessages = [
+                    "🧙 {user} has returned from the Forbidden Section of chat.",
+                    "💬 {user} can speak again. The silence was nice.",
+                    "🛏️ {user} has left the timeout dimension.",
+                    "🎮 {user} has re-entered the game.",
+                    "🔔 {user} has been released. Try to behave... maybe."
+                ].concat(loadCustomComebacks());
 
-            const interval = setInterval(async () => {
-                timeLeft -= 60;
-                if (timeLeft <= 0) {
-                    clearInterval(interval);
-                    const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)].replace('{user}', `<@${message.author.id}>`);
-                    if (channel) await channel.send(msg);
-                    if (announcementChannel) await announcementChannel.send(msg);
-                }
-            }, 60000);
+                const timerMessage = await announcementChannel.send(`⏳ <@${member.id}> is in timeout for ${formatTime(timeLeft)}`);
+                const interval = setInterval(async () => {
+                    timeLeft--;
+                    if (timeLeft > 0) {
+                        try {
+                            await timerMessage.edit(`⏳ <@${member.id}> has ${formatTime(timeLeft)} remaining...`);
+                        } catch (e) {
+                            console.error("Failed to edit timer message:", e.message);
+                            clearInterval(interval);
+                        }
+                    } else {
+                        clearInterval(interval);
+                        try {
+                            await timerMessage.delete();
+                        } catch (e) {
+                            console.warn("Couldn't delete timer message:", e.message);
+                        }
+                        const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)]
+                            .replace('{user}', `<@${message.author.id}>`);
+                        await announcementChannel.send(msg);
+                    }
+                }, 1000);
+            }
 
-            break; // stop after first mistake
+            break; // stop after first issue
         }
     }
 });
+
 
 
 client.login(TOKEN);
