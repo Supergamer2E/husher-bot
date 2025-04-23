@@ -200,6 +200,7 @@ client.on('interactionCreate', async interaction => {
 client.on('messageCreate', async message => {
     if (!spell || message.author.bot || !message.guild || message.channel.name !== 'general') return;
     if (message.content.startsWith('/') || message.content.startsWith('t!') || message.content.startsWith('t@')) return;
+
     const content = message.content.toLowerCase();
     const words = content.replace(/[^\w\s]/gi, '').split(/\s+/).filter(Boolean);
 
@@ -228,18 +229,39 @@ client.on('messageCreate', async message => {
 
             const filePath = await generateJailAvatar(member.user);
             if (announcementChannel) {
-    if (filePath) {
-        await announcementChannel.send({ embeds: [embed], files: [filePath] });
-    } else {
-        await announcementChannel.send({ embeds: [embed] });
-    }
-}
+                if (filePath) {
+                    await announcementChannel.send({ embeds: [embed], files: [filePath] });
+                } else {
+                    await announcementChannel.send({ embeds: [embed] });
+                }
+            }
 
             message.reply({ content: `🚨 Spelling mistake: \`${word}\` → \`${correction}\``, ephemeral: true });
-            break;
+
+            // 👇 Live timer + comeback message
+            let timeLeft = duration / 1000;
+            const comebackMessages = [
+                "🧙 {user} has returned from the Forbidden Section of chat.",
+                "💬 {user} can speak again. The silence was nice.",
+                "🛏️ {user} has left the timeout dimension.",
+                "🎮 {user} has re-entered the game.",
+                "🔔 {user} has been released. Try to behave... maybe."
+            ].concat(loadCustomComebacks());
+
+            const interval = setInterval(async () => {
+                timeLeft -= 60;
+                if (timeLeft <= 0) {
+                    clearInterval(interval);
+                    const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)].replace('{user}', `<@${message.author.id}>`);
+                    if (announcementChannel) await announcementChannel.send(msg);
+                }
+            }, 60000);
+
+            break; // only hush once per message
         }
     }
 });
+
 
 client.once('ready', () => {
     console.log(`🤖 The Husher is online as ${client.user.tag}`);
