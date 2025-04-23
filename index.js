@@ -122,6 +122,7 @@ client.on('interactionCreate', async interaction => {
         }
 
         const channel = interaction.guild.channels.cache.find(c => c.name === 'timeouts');
+const announcementChannel = interaction.guild.channels.cache.find(c => c.name === 'husher-announcements');
         const embed = new EmbedBuilder()
             .setTitle(success ? `🔇 ${target.tag} has been hushed!` : `⚠️ Tried to hush ${target.tag}`)
             .setDescription(
@@ -134,7 +135,8 @@ client.on('interactionCreate', async interaction => {
             .setTimestamp();
 
         const filePath = await generateJailAvatar(member.user);
-        await channel.send({ embeds: [embed], files: [new AttachmentBuilder(filePath)] });
+        await channel.send({ embeds: [embed]$1 });
+if (announcementChannel) await announcementChannel.send({ embeds: [embed]$1 });
 
         interaction.reply({ content: `✅ Hushed ${target.tag} for ${duration / 60000} mins.`, ephemeral: true });
 
@@ -153,6 +155,7 @@ client.on('interactionCreate', async interaction => {
                 clearInterval(interval);
                 const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)].replace('{user}', `<@${target.id}>`);
                 await channel.send(msg);
+if (announcementChannel) await announcementChannel.send(msg);
             }
         }, 60000);
     }
@@ -224,7 +227,8 @@ client.on('messageCreate', async message => {
                 .setTimestamp();
 
             const filePath = await generateJailAvatar(member.user);
-            await channel.send({ embeds: [embed], files: [new AttachmentBuilder(filePath)] });
+            await channel.send({ embeds: [embed]$1 });
+if (announcementChannel) await announcementChannel.send({ embeds: [embed]$1 });
 
             message.reply({ content: `🚨 Spelling mistake: \`${word}\` → \`${correction}\``, ephemeral: true });
             break;
