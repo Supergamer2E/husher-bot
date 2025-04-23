@@ -1,5 +1,5 @@
 // index.js
-import { Client, GatewayIntentBits, Partials, EmbedBuilder, SlashCommandBuilder, REST, Routes } from 'discord.js';
+import { Client, GatewayIntentBits, Partials, EmbedBuilder, SlashCommandBuilder, REST, Routes, PermissionsBitField } from 'discord.js';
 import fs from 'fs';
 import dictionary from 'dictionary-en';
 import nspell from 'nspell';
@@ -62,14 +62,8 @@ const commands = [
     new SlashCommandBuilder()
         .setName('custom-comeback')
         .setDescription('Manage comeback messages')
-        .addSubcommand(sub =>
-            sub.setName('add')
-                .setDescription('Add a message')
-                .addStringOption(opt => opt.setName('message').setDescription('Use {user} for name').setRequired(true)))
-        .addSubcommand(sub =>
-            sub.setName('remove')
-                .setDescription('Remove by index')
-                .addIntegerOption(opt => opt.setName('index').setDescription('Message index').setRequired(true)))
+        .addSubcommand(sub => sub.setName('add').setDescription('Add a message').addStringOption(opt => opt.setName('message').setDescription('Use {user} for name').setRequired(true)))
+        .addSubcommand(sub => sub.setName('remove').setDescription('Remove by index').addIntegerOption(opt => opt.setName('index').setDescription('Message index').setRequired(true)))
         .addSubcommand(sub => sub.setName('list').setDescription('List all custom comeback messages')),
     new SlashCommandBuilder()
         .setName('unhush')
@@ -119,23 +113,23 @@ client.on('interactionCreate', async interaction => {
 
         try {
             await member.timeout(null);
-        } catch (e) {}
+        } catch {}
 
         if (reduce && userTimeouts[target.id]) {
             userTimeouts[target.id] = Math.max(0, userTimeouts[target.id] - 1);
         }
 
         const msg = loadCustomComebacks().concat([
-            "🧙 {user} has returned from the Forbidden Section of chat.",
-            "💬 {user} can speak again. The silence was nice.",
-            "🛏️ {user} has left the timeout dimension.",
-            "🎮 {user} has re-entered the game.",
-            "🔔 {user} has been released. Try to behave... maybe."
+            '🧙 {user} has returned from the Forbidden Section of chat.',
+            '💬 {user} can speak again. The silence was nice.',
+            '🛏️ {user} has left the timeout dimension.',
+            '🎮 {user} has re-entered the game.',
+            '🔔 {user} has been released. Try to behave... maybe.'
         ]);
         const comeback = msg[Math.floor(Math.random() * msg.length)].replace('{user}', `<@${target.id}>`);
 
         await channel?.send(comeback);
-        interaction.reply({ content: `✅ ${target.tag} has been unhushed.`, ephemeral: true });
+        await interaction.reply({ content: `✅ ${target.tag} has been unhushed.`, flags: 1 << 6 });
     }
 
     if (commandName === 'remove-offense') {
@@ -143,7 +137,7 @@ client.on('interactionCreate', async interaction => {
         if (userTimeouts[target.id]) {
             userTimeouts[target.id] = Math.max(0, userTimeouts[target.id] - 1);
         }
-        interaction.reply({ content: `✅ ${target.tag}'s offense count reduced.`, ephemeral: true });
+        await interaction.reply({ content: `✅ ${target.tag}'s offense count reduced.`, flags: 1 << 6 });
     }
 });
 
@@ -167,30 +161,27 @@ client.on('messageCreate', async message => {
             let success = true;
             try {
                 await member.timeout(duration, 'Spelling/grammar mistake');
-            } catch (err) {
+            } catch {
                 success = false;
             }
 
             const embed = new EmbedBuilder()
                 .setTitle(success ? `🔇 ${message.author.tag} auto-hushed!` : `⚠️ Tried to hush ${message.author.tag}`)
-                .setDescription(`**Mistake:** \`${word}\`
-**Suggestion:** ${correction}
-**Message:** ${message.content}
-**Offense Count:** ${offenses}`)
+                .setDescription(`**Mistake:** \`${word}\`\n**Suggestion:** ${correction}\n**Message:** ${message.content}\n**Offense Count:** ${offenses}`)
                 .setColor(success ? 'Red' : 'Orange')
                 .setTimestamp();
 
             await announcementChannel?.send({ embeds: [embed] });
-            await message.reply({ content: `🚨 Spelling mistake: \`${word}\` → \`${correction}\``, ephemeral: true });
+            await message.reply({ content: `🚨 Spelling mistake: \`${word}\` → \`${correction}\``, flags: 1 << 6 });
 
             if (announcementChannel) {
                 let timeLeft = duration / 1000;
                 const comebackMessages = loadCustomComebacks().concat([
-                    "🧙 {user} has returned from the Forbidden Section of chat.",
-                    "💬 {user} can speak again. The silence was nice.",
-                    "🛏️ {user} has left the timeout dimension.",
-                    "🎮 {user} has re-entered the game.",
-                    "🔔 {user} has been released. Try to behave... maybe."
+                    '🧙 {user} has returned from the Forbidden Section of chat.',
+                    '💬 {user} can speak again. The silence was nice.',
+                    '🛏️ {user} has left the timeout dimension.',
+                    '🎮 {user} has re-entered the game.',
+                    '🔔 {user} has been released. Try to behave... maybe.'
                 ]);
 
                 const timerMessage = await announcementChannel.send(`⏳ <@${member.id}> is in timeout for ${formatTime(timeLeft)}`);
