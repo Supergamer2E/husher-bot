@@ -73,7 +73,18 @@ const commands = [
     new SlashCommandBuilder()
         .setName('remove-offense')
         .setDescription('Manually reduce a user offense count')
-        .addUserOption(opt => opt.setName('target').setDescription('User').setRequired(true))
+        .addUserOption(opt => opt.setName('target').setDescription('User').setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('whitelist-add')
+        .setDescription('Add a word to the autocorrect whitelist')
+        .addStringOption(opt => opt.setName('word').setDescription('Word to whitelist').setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('whitelist-remove')
+        .setDescription('Remove a word from the autocorrect whitelist')
+        .addStringOption(opt => opt.setName('word').setDescription('Word to remove').setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('toggle-autocorrect')
+        .setDescription('Enable or disable autocorrect globally')
 ].map(cmd => cmd.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
@@ -99,9 +110,21 @@ client.once('ready', () => {
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
     const { commandName } = interaction;
+
     try {
         const commandModule = await import(`./commands/${commandName}.js`);
-        await commandModule.default(interaction, { userTimeouts, activeTimers, loadCustomComebacks, saveCustomComebacks, getTimeoutDuration, formatTime });
+        await commandModule.default(interaction, {
+            userTimeouts,
+            activeTimers,
+            loadCustomComebacks,
+            saveCustomComebacks,
+            getTimeoutDuration,
+            formatTime,
+            whitelist,
+            spell,
+            autocorrectEnabled: global.autocorrectEnabled ?? true,
+            toggleAutocorrect: (state) => global.autocorrectEnabled = state
+        });
     } catch (err) {
         console.error(`❌ Error handling command '${commandName}':`, err);
         if (!interaction.replied && !interaction.deferred) {
@@ -110,16 +133,20 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
+
 client.on('messageCreate', async message => {
     if (!spell || message.author.bot || !message.guild || message.channel.name !== 'general') return;
     if (message.content.startsWith('/') || message.content.startsWith('t!') || message.content.startsWith('t@')) return;
 
+    const normalizeWord = word => word.replace(/(\w)\1{2,}/g, '$1$1'); // Collapse repeated letters
+
     const content = message.content.toLowerCase();
-    const words = content.replace(/[^\w\s]/gi, '').split(/\s+/).filter(Boolean);
+    const words = content.replace(/[^\w\s']/gi, '').split(/\s+/).filter(Boolean);
 
     for (const word of words) {
-        if (!spell.correct(word) && !whitelist.includes(word)) {
-            const suggestions = spell.suggest(word);
+        const normalized = normalizeWord(word);
+        if (!spell.correct(normalized) && !whitelist.includes(normalized)) {
+            const suggestions = spell.suggest(normalized);
             const correction = suggestions[0] || 'no suggestions';
 
             const member = await message.guild.members.fetch(message.author.id);
@@ -169,5 +196,6 @@ client.on('messageCreate', async message => {
         }
     }
 });
+
 
 client.login(TOKEN);
