@@ -28,7 +28,7 @@ function formatTime(seconds) {
 const userTimeouts = {};
 const activeTimers = new Map();
 let currentDate = new Date().toDateString();
-const whitelist = ['lol', 'tbh', 'idk', 'discord', 'minecraft', 'kai', 'keaton', 'dylan', 'mrmeatlug', 'supergamer2e', 'chill.pixl'];
+const whitelist = ['lol', 'tbh', 'idk', 'discord', 'minecraft', 'kai', 'keaton', 'dylan', 'mrmeatlug', 'supergamer2e', 'chillpixl'];
 
 const loadCustomComebacks = () => JSON.parse(fs.readFileSync('./comebacks.json', 'utf8'));
 const saveCustomComebacks = list => fs.writeFileSync('./comebacks.json', JSON.stringify(list, null, 2));
