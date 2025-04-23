@@ -114,7 +114,7 @@ client.on('interactionCreate', async interaction => {
             .setDescription(
                 `**Reason:** ${reason}\n` +
                 (corrector ? `**Corrected by:** ${corrector}\n` : '') +
-                (success ? `**Time Remaining:** <t:${Math.floor((Date.now() + duration) / 1000)}:R>\n` : '*Could not apply timeout due to role hierarchy.*\n') +
+                (success ? `**Time Remaining:** <t:${Math.floor((Date.now() + duration) / 1000)}:R>\n` : '*Could not apply timeout.*\n') +
                 `**Offense Count Today:** ${offenses}`
             )
             .setColor(success ? 'Blue' : 'Orange')
@@ -122,7 +122,7 @@ client.on('interactionCreate', async interaction => {
 
         if (announcementChannel) await announcementChannel.send({ embeds: [embed] });
 
-        interaction.reply({ content: `✅ Hushed ${target.tag} for ${duration / 60000} mins.`, ephemeral: true });
+        await interaction.reply({ content: `✅ Hushed ${target.tag} for ${duration / 60000} mins.`, ephemeral: true });
 
         if (success && announcementChannel) {
             let timeLeft = duration / 1000;
@@ -141,7 +141,6 @@ client.on('interactionCreate', async interaction => {
                     try {
                         await timerMessage.edit(`⏳ <@${member.id}> has ${formatTime(timeLeft)} remaining...`);
                     } catch (e) {
-                        console.error("Failed to edit timer message:", e.message);
                         clearInterval(interval);
                     }
                 } else {
@@ -149,7 +148,7 @@ client.on('interactionCreate', async interaction => {
                     try {
                         await timerMessage.delete();
                     } catch (e) {
-                        console.warn("Couldn't delete timer message:", e.message);
+                        console.warn("Could not delete timer message");
                     }
                     const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)]
                         .replace('{user}', `<@${member.id}>`);
@@ -195,10 +194,11 @@ client.on('interactionCreate', async interaction => {
             interaction.reply({ content: result, ephemeral: true });
         }
     }
-    client.login(TOKEN).then(() => {
-        console.log(`🤖 The Husher is online as ${client.user.tag}`);
-    }).catch(err => {
-        console.error("❌ Bot login failed:", err.message);
-    });
-    
+});
+
+// ✅ Login and log bot online status
+client.login(TOKEN).then(() => {
+    console.log(`🤖 The Husher is online as ${client.user.tag}`);
+}).catch(err => {
+    console.error("❌ Bot login failed:", err.message);
 });
