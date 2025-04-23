@@ -124,7 +124,13 @@ client.on('interactionCreate', async interaction => {
             .setTimestamp();
 
         const filePath = await generateJailAvatar(member.user);
-        if (announcementChannel) await announcementChannel.send({ embeds: [embed], files: [filePath] });
+        if (announcementChannel) {
+    if (filePath) {
+        await announcementChannel.send({ embeds: [embed], files: [filePath] });
+    } else {
+        await announcementChannel.send({ embeds: [embed] });
+    }
+}
 
         interaction.reply({ content: `✅ Hushed ${target.tag} for ${duration / 60000} mins.`, ephemeral: true });
 
@@ -221,7 +227,13 @@ client.on('messageCreate', async message => {
                 .setTimestamp();
 
             const filePath = await generateJailAvatar(member.user);
-            if (announcementChannel) await announcementChannel.send({ embeds: [embed], files: [filePath] });
+            if (announcementChannel) {
+    if (filePath) {
+        await announcementChannel.send({ embeds: [embed], files: [filePath] });
+    } else {
+        await announcementChannel.send({ embeds: [embed] });
+    }
+}
 
             message.reply({ content: `🚨 Spelling mistake: \`${word}\` → \`${correction}\``, ephemeral: true });
             break;
