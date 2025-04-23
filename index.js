@@ -199,6 +199,7 @@ if (announcementChannel) await announcementChannel.send(msg);
 });
 
 client.on('messageCreate', async message => {
+    if (!spell || message.author.bot || !message.guild || message.channel.name !== 'general') return;
     if (!spell || message.author.bot || !message.guild) return;
     const content = message.content.toLowerCase();
     const words = content.replace(/[^\w\s]/gi, '').split(/\s+/).filter(Boolean);
