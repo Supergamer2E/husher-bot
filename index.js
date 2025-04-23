@@ -107,6 +107,9 @@ client.on('interactionCreate', async interaction => {
     const { commandName } = interaction;
 
     if (commandName === 'hush') {
+    if (!interaction.member.permissions.has('ModerateMembers')) {
+        return interaction.reply({ content: '❌ You do not have permission to use this command.', ephemeral: true });
+    }
         const target = interaction.options.getUser('target');
         const member = await interaction.guild.members.fetch(target.id);
         const reason = interaction.options.getString('reason');
@@ -136,8 +139,7 @@ const announcementChannel = interaction.guild.channels.cache.find(c => c.name ==
 
         const filePath = await generateJailAvatar(member.user);
         await channel.send({ embeds: [embed] });
-
-    if (announcementChannel) await announcementChannel.send({ embeds: [embed] });
+if (announcementChannel) await announcementChannel.send({ embeds: [embed] });
 
         interaction.reply({ content: `✅ Hushed ${target.tag} for ${duration / 60000} mins.`, ephemeral: true });
 
@@ -162,6 +164,9 @@ if (announcementChannel) await announcementChannel.send(msg);
     }
 
     if (commandName === 'reset-hushes') {
+    if (!interaction.member.permissions.has('ModerateMembers')) {
+        return interaction.reply({ content: '❌ You do not have permission to use this command.', ephemeral: true });
+    }
         for (const key in userTimeouts) delete userTimeouts[key];
         currentDate = new Date().toDateString();
         interaction.reply({ content: '✅ All offenses reset for today.', ephemeral: true });
@@ -174,6 +179,9 @@ if (announcementChannel) await announcementChannel.send(msg);
     }
 
     if (commandName === 'custom-comeback') {
+    if (!interaction.member.permissions.has('ModerateMembers')) {
+        return interaction.reply({ content: '❌ You do not have permission to use this command.', ephemeral: true });
+    }
         const sub = interaction.options.getSubcommand();
         let list = loadCustomComebacks();
 
@@ -201,6 +209,8 @@ if (announcementChannel) await announcementChannel.send(msg);
 
 client.on('messageCreate', async message => {
     if (!spell || message.author.bot || !message.guild || message.channel.name !== 'general') return;
+    if (message.content.startsWith('/') || message.content.startsWith('t!') || message.content.startsWith('t@')) return;
+    if (message.content.startsWith('/') || message.content.startsWith('t!') || message.content.startsWith('t@')) return;
     if (!spell || message.author.bot || !message.guild) return;
     const content = message.content.toLowerCase();
     const words = content.replace(/[^\w\s]/gi, '').split(/\s+/).filter(Boolean);
@@ -230,8 +240,7 @@ client.on('messageCreate', async message => {
 
             const filePath = await generateJailAvatar(member.user);
             await channel.send({ embeds: [embed] });
-
-    if (announcementChannel) await announcementChannel.send({ embeds: [embed] });
+if (announcementChannel) await announcementChannel.send({ embeds: [embed] });
 
             message.reply({ content: `🚨 Spelling mistake: \`${word}\` → \`${correction}\``, ephemeral: true });
             break;
