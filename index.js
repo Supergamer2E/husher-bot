@@ -21,6 +21,7 @@ const client = new Client({
     partials: [Partials.Message, Partials.Channel, Partials.GuildMember]
 });
 
+// Utilities
 const userTimeouts = {};
 let currentDate = new Date().toDateString();
 const whitelist = ['lol', 'tbh', 'idk', 'discord', 'minecraft'];
@@ -40,41 +41,34 @@ function getTimeoutDuration(userId) {
     return group * 5 * 60 * 1000;
 }
 
-async function generateJailAvatar(user) {
-    try {
-        const avatarURL = user.displayAvatarURL({ extension: 'png', size: 256 });
-        const avatar = await loadImage(avatarURL);
-        const jailOverlay = await loadImage('./assets/jail_overlay.png');
-
-        const canvas = createCanvas(256, 256);
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(avatar, 0, 0, 256, 256);
-        ctx.drawImage(jailOverlay, 0, 0, 256, 256);
-
-        const buffer = canvas.toBuffer('image/png');
-        const filePath = `./tmp/jail_${user.id}.png`;
-        fs.writeFileSync(filePath, buffer);
-        return filePath;
-    } catch (err) {
-        console.error(`❌ Failed to generate jail avatar for ${user.tag}:`, err.message);
-        return null; // fallback if avatar can't be generated
-    }
-}
 
 
+// Slash commands registration
 const commands = [
-    new SlashCommandBuilder().setName('hush').setDescription('Put a user in timeout')
+    new SlashCommandBuilder()
+        .setName('hush')
+        .setDescription('Put a user in timeout')
         .addUserOption(opt => opt.setName('target').setDescription('Target user').setRequired(true))
         .addStringOption(opt => opt.setName('reason').setDescription('Reason for timeout').setRequired(true))
         .addUserOption(opt => opt.setName('corrector').setDescription('Who corrected them (optional)')),
-    new SlashCommandBuilder().setName('reset-hushes').setDescription('Reset all hush offense counts for the day'),
-    new SlashCommandBuilder().setName('hush-info').setDescription('Check hush offense count')
+    new SlashCommandBuilder()
+        .setName('reset-hushes')
+        .setDescription('Reset all hush offense counts for the day'),
+    new SlashCommandBuilder()
+        .setName('hush-info')
+        .setDescription('Check hush offense count')
         .addUserOption(opt => opt.setName('target').setDescription('Target user').setRequired(true)),
-    new SlashCommandBuilder().setName('custom-comeback').setDescription('Manage comeback messages')
-        .addSubcommand(sub => sub.setName('add').setDescription('Add a message')
-            .addStringOption(opt => opt.setName('message').setDescription('Use {user} for name').setRequired(true)))
-        .addSubcommand(sub => sub.setName('remove').setDescription('Remove by index')
-            .addIntegerOption(opt => opt.setName('index').setDescription('Message index').setRequired(true)))
+    new SlashCommandBuilder()
+        .setName('custom-comeback')
+        .setDescription('Manage comeback messages')
+        .addSubcommand(sub =>
+            sub.setName('add')
+                .setDescription('Add a message')
+                .addStringOption(opt => opt.setName('message').setDescription('Use {user} for name').setRequired(true)))
+        .addSubcommand(sub =>
+            sub.setName('remove')
+                .setDescription('Remove by index')
+                .addIntegerOption(opt => opt.setName('index').setDescription('Message index').setRequired(true)))
         .addSubcommand(sub => sub.setName('list').setDescription('List all custom comeback messages'))
 ].map(cmd => cmd.toJSON());
 
@@ -97,12 +91,8 @@ dictionary((err, dict) => {
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
     const { commandName } = interaction;
-    const announcementChannel = interaction.guild.channels.cache.find(c => c.name === 'husher-announcements');
 
     if (commandName === 'hush') {
-        if (!interaction.member.permissions.has('ModerateMembers')) {
-            return interaction.reply({ content: '❌ You do not have permission to use this command.', ephemeral: true });
-        }
         const target = interaction.options.getUser('target');
         const member = await interaction.guild.members.fetch(target.id);
         const reason = interaction.options.getString('reason');
@@ -117,20 +107,19 @@ client.on('interactionCreate', async interaction => {
             success = false;
         }
 
+        const channel = interaction.guild.channels.cache.find(c => c.name === 'timeouts');
+const announcementChannel = interaction.guild.channels.cache.find(c => c.name === 'husher-announcements');
         const embed = new EmbedBuilder()
             .setTitle(success ? `🔇 ${target.tag} has been hushed!` : `⚠️ Tried to hush ${target.tag}`)
-            .setDescription(`**Reason:** ${reason}\n${corrector ? `**Corrected by:** ${corrector}\n` : ''}${success ? `**Time Remaining:** <t:${Math.floor((Date.now() + duration) / 1000)}:R>\n` : '*Could not apply timeout due to role hierarchy.*\n'}**Offense Count Today:** ${offenses}`)
+            .setDescription(
+                `**Reason:** ${reason}\n` +
+                (corrector ? `**Corrected by:** ${corrector}\n` : '') +
+                (success ? `**Time Remaining:** <t:${Math.floor((Date.now() + duration) / 1000)}:R>\n` : '*Could not apply timeout due to role hierarchy.*\n') +
+                `**Offense Count Today:** ${offenses}`
+            )
             .setColor(success ? 'Blue' : 'Orange')
-            .setTimestamp();
-
-        const filePath = await generateJailAvatar(member.user);
-        if (announcementChannel) {
-    if (filePath) {
-        await announcementChannel.send({ embeds: [embed], files: [filePath] });
-    } else {
-        await announcementChannel.send({ embeds: [embed] });
-    }
-}
+            .setTimestamp();        await channel.send({ embeds: [embed] });
+if (announcementChannel) await announcementChannel.send({ embeds: [embed] });
 
         interaction.reply({ content: `✅ Hushed ${target.tag} for ${duration / 60000} mins.`, ephemeral: true });
 
@@ -148,15 +137,13 @@ client.on('interactionCreate', async interaction => {
             if (timeLeft <= 0) {
                 clearInterval(interval);
                 const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)].replace('{user}', `<@${target.id}>`);
-                if (announcementChannel) await announcementChannel.send(msg);
+                await channel.send(msg);
+if (announcementChannel) await announcementChannel.send(msg);
             }
         }, 60000);
     }
 
     if (commandName === 'reset-hushes') {
-        if (!interaction.member.permissions.has('ModerateMembers')) {
-            return interaction.reply({ content: '❌ You do not have permission to use this command.', ephemeral: true });
-        }
         for (const key in userTimeouts) delete userTimeouts[key];
         currentDate = new Date().toDateString();
         interaction.reply({ content: '✅ All offenses reset for today.', ephemeral: true });
@@ -169,9 +156,6 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (commandName === 'custom-comeback') {
-        if (!interaction.member.permissions.has('ModerateMembers')) {
-            return interaction.reply({ content: '❌ You do not have permission to use this command.', ephemeral: true });
-        }
         const sub = interaction.options.getSubcommand();
         let list = loadCustomComebacks();
 
@@ -199,8 +183,7 @@ client.on('interactionCreate', async interaction => {
 
 client.on('messageCreate', async message => {
     if (!spell || message.author.bot || !message.guild || message.channel.name !== 'general') return;
-    if (message.content.startsWith('/') || message.content.startsWith('t!') || message.content.startsWith('t@')) return;
-
+    if (!spell || message.author.bot || !message.guild) return;
     const content = message.content.toLowerCase();
     const words = content.replace(/[^\w\s]/gi, '').split(/\s+/).filter(Boolean);
 
@@ -220,51 +203,18 @@ client.on('messageCreate', async message => {
                 success = false;
             }
 
-            const announcementChannel = message.guild.channels.cache.find(c => c.name === 'husher-announcements');
+            const channel = message.guild.channels.cache.find(c => c.name === 'timeouts');
             const embed = new EmbedBuilder()
                 .setTitle(success ? `🔇 ${message.author.tag} auto-hushed!` : `⚠️ Tried to hush ${message.author.tag}`)
                 .setDescription(`**Mistake:** \`${word}\`\n**Suggestion:** ${correction}\n**Message:** ${message.content}\n**Offense Count:** ${offenses}`)
                 .setColor(success ? 'Red' : 'Orange')
-                .setTimestamp();
-
-            const filePath = await generateJailAvatar(member.user);
-            if (announcementChannel) {
-                if (filePath) {
-                    await announcementChannel.send({ embeds: [embed], files: [filePath] });
-                } else {
-                    await announcementChannel.send({ embeds: [embed] });
-                }
-            }
+                .setTimestamp();            await channel.send({ embeds: [embed] });
+if (announcementChannel) await announcementChannel.send({ embeds: [embed] });
 
             message.reply({ content: `🚨 Spelling mistake: \`${word}\` → \`${correction}\``, ephemeral: true });
-
-            // 👇 Live timer + comeback message
-            let timeLeft = duration / 1000;
-            const comebackMessages = [
-                "🧙 {user} has returned from the Forbidden Section of chat.",
-                "💬 {user} can speak again. The silence was nice.",
-                "🛏️ {user} has left the timeout dimension.",
-                "🎮 {user} has re-entered the game.",
-                "🔔 {user} has been released. Try to behave... maybe."
-            ].concat(loadCustomComebacks());
-
-            const interval = setInterval(async () => {
-                timeLeft -= 60;
-                if (timeLeft <= 0) {
-                    clearInterval(interval);
-                    const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)].replace('{user}', `<@${message.author.id}>`);
-                    if (announcementChannel) await announcementChannel.send(msg);
-                }
-            }, 60000);
-
-            break; // only hush once per message
+            break;
         }
     }
-});
-
-
-client.once('ready', () => {
-    console.log(`🤖 The Husher is online as ${client.user.tag}`);
 });
 
 client.login(TOKEN);
