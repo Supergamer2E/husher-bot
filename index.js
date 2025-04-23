@@ -141,33 +141,54 @@ client.on('messageCreate', async message => {
     if (!spell || message.author.bot || !message.guild || message.channel.name !== 'general') return;
     if (message.content.startsWith('/') || message.content.startsWith('t!') || message.content.startsWith('t@')) return;
 
-    const content = message.content;
-    const words = content.match(/\b[\w']+\b/g)?.filter(w =>
-    isNaN(w) &&                      // Exclude numbers
-    !/^<@!?(\d+)>$/.test(w) &&       // Exclude mentions
-    !whitelist.includes(w.toLowerCase()) // Still allow whitelist filter
-) || [];
+    const originalContent = message.content;
+    const words = originalContent.match(/\b[\w']+\b/g)?.filter(Boolean) || [];
+    const problematicWord = words.find(word => {
+        const lower = word.toLowerCase();
+        return !whitelist.includes(lower) && !spell.correct(lower);
+    });
 
-    for (const word of words) {
-        const lowerWord = word.toLowerCase();
+    if (!problematicWord) return;
 
-        // Skip whitelisted words
-        if (whitelist.includes(lowerWord)) continue;
+    const generalChannel = message.channel;
+    const member = await message.guild.members.fetch(message.author.id);
+    const duration = getTimeoutDuration(member.id);
+    const offenses = userTimeouts[member.id];
 
-        // Skip if spellchecker thinks it's valid
-        if (spell.correct(lowerWord)) continue;
+    const warningMsg = await generalChannel.send(
+        `⚠️ <@${message.author.id}> Potential spelling mistake detected. You have 15 seconds to fix your message.`
+    );
 
-        const suggestions = spell.suggest(lowerWord);
-        const correction = suggestions[0] || 'no suggestions';
+    let timeLeft = 15;
+    const countdown = setInterval(async () => {
+        timeLeft--;
+        if (timeLeft > 0) {
+            try {
+                await warningMsg.edit(`⚠️ <@${message.author.id}> You have ${timeLeft} second${timeLeft !== 1 ? 's' : ''} left to fix your message.`);
+            } catch {}
+        } else {
+            clearInterval(countdown);
+        }
+    }, 1000);
 
-        // Skip if the suggestion is just a casing variant
-        if (correction.toLowerCase() === lowerWord) continue;
+    const collector = message.channel.createMessageCollector({
+        filter: m => m.id === message.id,
+        time: 15000
+    });
 
-        // Fetch offender and calculate timeout
-        const member = await message.guild.members.fetch(message.author.id);
-        const duration = getTimeoutDuration(member.id);
-        const offenses = userTimeouts[member.id];
-        const channel = message.guild.channels.cache.find(c => c.name === 'husher-announcements');
+    collector.on('end', async () => {
+        clearInterval(countdown);
+        const edited = await message.fetch();
+        const newWords = edited.content.match(/\b[\w']+\b/g)?.filter(Boolean) || [];
+        const stillProblem = newWords.find(word => {
+            const lower = word.toLowerCase();
+            return !whitelist.includes(lower) && !spell.correct(lower);
+        });
+
+        if (!stillProblem) {
+            await warningMsg.edit(`✅ <@${message.author.id}> Message fixed. No timeout applied.`);
+            return;
+        }
 
         let success = true;
         try {
@@ -178,42 +199,38 @@ client.on('messageCreate', async message => {
 
         const embed = new EmbedBuilder()
             .setTitle(success ? `🔇 ${message.author.tag} auto-hushed!` : `⚠️ Tried to hush ${message.author.tag}`)
-            .setDescription(`**Mistake:** \`${word}\`\n**Suggestion:** ${correction}\n**Message:** ${message.content}\n**Offense Count:** ${offenses}`)
+            .setDescription(`**Mistake:** \`${stillProblem}\`\n**Message:** ${edited.content}\n**Offense Count:** ${offenses}`)
             .setColor(success ? 'Red' : 'Orange')
             .setTimestamp();
 
-        if (channel) await channel.send({ embeds: [embed] });
-        await message.reply({ content: `🚨 Spelling mistake: \`${word}\` → \`${correction}\``, ephemeral: true });
+        const announcementChannel = message.guild.channels.cache.find(c => c.name === 'husher-announcements');
+        if (announcementChannel) await announcementChannel.send({ embeds: [embed] });
 
-        // Timer announcement
-        if (channel) {
-            let timeLeft = duration / 1000;
-            const comebackMessages = loadCustomComebacks().concat([
-                '🧙 {user} has returned from the Forbidden Section of chat.',
-                '💬 {user} can speak again. The silence was nice.',
-                '🛏️ {user} has left the timeout dimension.',
-                '🎮 {user} has re-entered the game.',
-                '🔔 {user} has been released. Try to behave... maybe.'
-            ]);
+        const comebackMessages = loadCustomComebacks().concat([
+            '🧙 {user} has returned from the Forbidden Section of chat.',
+            '💬 {user} can speak again. The silence was nice.',
+            '🛏️ {user} has left the timeout dimension.',
+            '🎮 {user} has re-entered the game.',
+            '🔔 {user} has been released. Try to behave... maybe.'
+        ]);
 
-            const timerMessage = await channel.send(`⏳ <@${member.id}> is in timeout for ${formatTime(timeLeft)}`);
-            const interval = setInterval(async () => {
-                timeLeft--;
-                if (timeLeft > 0) {
-                    await timerMessage.edit(`⏳ <@${member.id}> has ${formatTime(timeLeft)} remaining...`);
-                } else {
-                    clearInterval(interval);
-                    activeTimers.delete(member.id);
-                    try { await timerMessage.delete(); } catch {}
-                    const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)].replace('{user}', `<@${member.id}>`);
-                    await channel.send(msg);
-                }
-            }, 1000);
-            activeTimers.set(member.id, interval);
-        }
-
-        break; // Stop checking after first mistake
-    }
+        let timeRemaining = duration / 1000;
+        const timerMessage = await announcementChannel?.send(`⏳ <@${member.id}> is in timeout for ${formatTime(timeRemaining)}`);
+        const interval = setInterval(async () => {
+            timeRemaining--;
+            if (timeRemaining > 0) {
+                await timerMessage.edit(`⏳ <@${member.id}> has ${formatTime(timeRemaining)} remaining...`);
+            } else {
+                clearInterval(interval);
+                activeTimers.delete(member.id);
+                try { await timerMessage.delete(); } catch {}
+                const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)].replace('{user}', `<@${member.id}>`);
+                await announcementChannel?.send(msg);
+            }
+        }, 1000);
+        activeTimers.set(member.id, interval);
+    });
 });
+
 
 client.login(TOKEN);
