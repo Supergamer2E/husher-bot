@@ -232,6 +232,7 @@ client.on('messageCreate', async message => {
             }
 
             const channel = message.guild.channels.cache.find(c => c.name === 'timeouts');
+    const announcementChannel = message.guild.channels.cache.find(c => c.name === 'husher-announcements');
             const embed = new EmbedBuilder()
                 .setTitle(success ? `🔇 ${message.author.tag} auto-hushed!` : `⚠️ Tried to hush ${message.author.tag}`)
                 .setDescription(`**Mistake:** \`${word}\`\n**Suggestion:** ${correction}\n**Message:** ${message.content}\n**Offense Count:** ${offenses}`)
