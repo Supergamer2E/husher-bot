@@ -100,44 +100,90 @@ client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
     const { commandName } = interaction;
 
-    if (commandName === 'unhush') {
-        const target = interaction.options.getUser('target');
-        const reduce = interaction.options.getBoolean('reduce-offense');
-        const member = await interaction.guild.members.fetch(target.id);
-        const channel = interaction.guild.channels.cache.find(c => c.name === 'husher-announcements');
+    try {
+        if (commandName === 'unhush') {
+            const target = interaction.options.getUser('target');
+            const reduce = interaction.options.getBoolean('reduce-offense');
+            const member = await interaction.guild.members.fetch(target.id);
+            const channel = interaction.guild.channels.cache.find(c => c.name === 'husher-announcements');
 
-        if (activeTimers.has(target.id)) {
-            clearInterval(activeTimers.get(target.id));
-            activeTimers.delete(target.id);
+            if (activeTimers.has(target.id)) {
+                clearInterval(activeTimers.get(target.id));
+                activeTimers.delete(target.id);
+            }
+
+            try {
+                await member.timeout(null);
+            } catch {}
+
+            if (reduce && userTimeouts[target.id]) {
+                userTimeouts[target.id] = Math.max(0, userTimeouts[target.id] - 1);
+            }
+
+            const msg = loadCustomComebacks().concat([
+                '🧙 {user} has returned from the Forbidden Section of chat.',
+                '💬 {user} can speak again. The silence was nice.',
+                '🛏️ {user} has left the timeout dimension.',
+                '🎮 {user} has re-entered the game.',
+                '🔔 {user} has been released. Try to behave... maybe.'
+            ]);
+            const comeback = msg[Math.floor(Math.random() * msg.length)].replace('{user}', `<@${target.id}>`);
+
+            await channel?.send(comeback);
+            await interaction.reply({ content: `✅ ${target.tag} has been unhushed.`, flags: 1 << 6 });
         }
 
-        try {
-            await member.timeout(null);
-        } catch {}
-
-        if (reduce && userTimeouts[target.id]) {
-            userTimeouts[target.id] = Math.max(0, userTimeouts[target.id] - 1);
+        else if (commandName === 'remove-offense') {
+            const target = interaction.options.getUser('target');
+            if (userTimeouts[target.id]) {
+                userTimeouts[target.id] = Math.max(0, userTimeouts[target.id] - 1);
+            }
+            await interaction.reply({ content: `✅ ${target.tag}'s offense count reduced.`, flags: 1 << 6 });
         }
 
-        const msg = loadCustomComebacks().concat([
-            '🧙 {user} has returned from the Forbidden Section of chat.',
-            '💬 {user} can speak again. The silence was nice.',
-            '🛏️ {user} has left the timeout dimension.',
-            '🎮 {user} has re-entered the game.',
-            '🔔 {user} has been released. Try to behave... maybe.'
-        ]);
-        const comeback = msg[Math.floor(Math.random() * msg.length)].replace('{user}', `<@${target.id}>`);
-
-        await channel?.send(comeback);
-        await interaction.reply({ content: `✅ ${target.tag} has been unhushed.`, flags: 1 << 6 });
-    }
-
-    if (commandName === 'remove-offense') {
-        const target = interaction.options.getUser('target');
-        if (userTimeouts[target.id]) {
-            userTimeouts[target.id] = Math.max(0, userTimeouts[target.id] - 1);
+        else if (commandName === 'reset-hushes') {
+            for (const key in userTimeouts) delete userTimeouts[key];
+            currentDate = new Date().toDateString();
+            await interaction.reply({ content: '✅ All offenses reset for today.', flags: 1 << 6 });
         }
-        await interaction.reply({ content: `✅ ${target.tag}'s offense count reduced.`, flags: 1 << 6 });
+
+        else if (commandName === 'hush-info') {
+            const target = interaction.options.getUser('target');
+            const offenses = userTimeouts[target.id] || 0;
+            await interaction.reply({ content: `📊 ${target.tag} has been hushed ${offenses} time(s) today.`, flags: 1 << 6 });
+        }
+
+        else if (commandName === 'custom-comeback') {
+            const sub = interaction.options.getSubcommand();
+            let list = loadCustomComebacks();
+
+            if (sub === 'add') {
+                const msg = interaction.options.getString('message');
+                list.push(msg);
+                saveCustomComebacks(list);
+                await interaction.reply({ content: `✅ Added: \`${msg}\``, flags: 1 << 6 });
+            }
+
+            if (sub === 'remove') {
+                const i = interaction.options.getInteger('index');
+                if (i < 0 || i >= list.length) return await interaction.reply({ content: '❌ Invalid index.', flags: 1 << 6 });
+                const removed = list.splice(i, 1);
+                saveCustomComebacks(list);
+                await interaction.reply({ content: `🗑️ Removed: \`${removed[0]}\``, flags: 1 << 6 });
+            }
+
+            if (sub === 'list') {
+                const result = list.map((msg, i) => `**${i}:** ${msg}`).join('\n') || 'No custom comebacks.';
+                await interaction.reply({ content: result, flags: 1 << 6 });
+            }
+        }
+    } catch (error) {
+        console.error("❌ Command handler error:", error);
+        if (interaction.deferred || interaction.replied) {
+            await interaction.editReply({ content: '⚠️ An error occurred while processing the command.' });
+        } else {
+            await interaction.reply({ content: '⚠️ An error occurred while processing the command.', flags: 1 << 6 });
+        }
     }
 });
 
