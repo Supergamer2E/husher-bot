@@ -141,9 +141,9 @@ client.on('messageCreate', async message => {
     if (!spell || message.author.bot || !message.guild || message.channel.name !== 'general') return;
     if (message.content.startsWith('/') || message.content.startsWith('t!') || message.content.startsWith('t@')) return;
 
-    const normalizeWord = word => word.replace(/(\w)\1{2,}/gi, '$1$1'); // Collapse long repeats
+    const normalizeWord = word => word.replace(/[^\w\s']/gi, '');
+
     const rawWords = message.content
-        .replace(/[^\w\s']/gi, '') // keep apostrophes for words like "I'm"
         .split(/\s+/)
         .filter(Boolean)
         .map(normalizeWord);
@@ -153,58 +153,63 @@ client.on('messageCreate', async message => {
     for (let i = 0; i < words.length; i++) {
         const original = rawWords[i];
         const lower = words[i];
+        const base = lower.replace(/(\w)\1{1,}/g, '$1'); // Collapse repeated letters down to 1
 
-        if (!spell.correct(lower) && !whitelist.includes(lower)) {
-            const suggestions = spell.suggest(lower).map(s => s.toLowerCase());
-            const correction = suggestions[0] || 'no suggestions';
-
-            const member = await message.guild.members.fetch(message.author.id);
-            const duration = getTimeoutDuration(member.id);
-            const offenses = userTimeouts[member.id];
-            const channel = message.guild.channels.cache.find(c => c.name === 'husher-announcements');
-
-            let success = true;
-            try { await member.timeout(duration, 'Spelling/grammar mistake'); } catch { success = false; }
-
-            const embed = new EmbedBuilder()
-                .setTitle(success ? `🔇 ${message.author.tag} auto-hushed!` : `⚠️ Tried to hush ${message.author.tag}`)
-                .setDescription(`**Mistake:** \`${original}\`\n**Suggestion:** ${correction}\n**Message:** ${message.content}\n**Offense Count:** ${offenses}`)
-                .setColor(success ? 'Red' : 'Orange')
-                .setTimestamp();
-
-            if (channel) await channel.send({ embeds: [embed] });
-            await message.reply({ content: `🚨 Spelling mistake: \`${original}\` → \`${correction}\``, ephemeral: true });
-
-            if (channel) {
-                let timeLeft = duration / 1000;
-                const comebackMessages = loadCustomComebacks().concat([
-                    '🧙 {user} has returned from the Forbidden Section of chat.',
-                    '💬 {user} can speak again. The silence was nice.',
-                    '🛏️ {user} has left the timeout dimension.',
-                    '🎮 {user} has re-entered the game.',
-                    '🔔 {user} has been released. Try to behave... maybe.'
-                ]);
-
-                const timerMessage = await channel.send(`⏳ <@${member.id}> is in timeout for ${formatTime(timeLeft)}`);
-                const interval = setInterval(async () => {
-                    timeLeft--;
-                    if (timeLeft > 0) {
-                        await timerMessage.edit(`⏳ <@${member.id}> has ${formatTime(timeLeft)} remaining...`);
-                    } else {
-                        clearInterval(interval);
-                        activeTimers.delete(member.id);
-                        try { await timerMessage.delete(); } catch {}
-                        const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)].replace('{user}', `<@${member.id}>`);
-                        await channel.send(msg);
-                    }
-                }, 1000);
-                activeTimers.set(member.id, interval);
-            }
-
-            break; // Only correct first detected mistake
+        if (whitelist.includes(base) || spell.correct(base)) {
+            // base word is valid
+            continue;
         }
+
+        const suggestions = spell.suggest(base).map(s => s.toLowerCase());
+        const correction = suggestions[0] || 'no suggestions';
+
+        const member = await message.guild.members.fetch(message.author.id);
+        const duration = getTimeoutDuration(member.id);
+        const offenses = userTimeouts[member.id];
+        const channel = message.guild.channels.cache.find(c => c.name === 'husher-announcements');
+
+        let success = true;
+        try { await member.timeout(duration, 'Spelling/grammar mistake'); } catch { success = false; }
+
+        const embed = new EmbedBuilder()
+            .setTitle(success ? `🔇 ${message.author.tag} auto-hushed!` : `⚠️ Tried to hush ${message.author.tag}`)
+            .setDescription(`**Mistake:** \`${original}\`\n**Suggestion:** ${correction}\n**Message:** ${message.content}\n**Offense Count:** ${offenses}`)
+            .setColor(success ? 'Red' : 'Orange')
+            .setTimestamp();
+
+        if (channel) await channel.send({ embeds: [embed] });
+        await message.reply({ content: `🚨 Spelling mistake: \`${original}\` → \`${correction}\``, ephemeral: true });
+
+        if (channel) {
+            let timeLeft = duration / 1000;
+            const comebackMessages = loadCustomComebacks().concat([
+                '🧙 {user} has returned from the Forbidden Section of chat.',
+                '💬 {user} can speak again. The silence was nice.',
+                '🛏️ {user} has left the timeout dimension.',
+                '🎮 {user} has re-entered the game.',
+                '🔔 {user} has been released. Try to behave... maybe.'
+            ]);
+
+            const timerMessage = await channel.send(`⏳ <@${member.id}> is in timeout for ${formatTime(timeLeft)}`);
+            const interval = setInterval(async () => {
+                timeLeft--;
+                if (timeLeft > 0) {
+                    await timerMessage.edit(`⏳ <@${member.id}> has ${formatTime(timeLeft)} remaining...`);
+                } else {
+                    clearInterval(interval);
+                    activeTimers.delete(member.id);
+                    try { await timerMessage.delete(); } catch {}
+                    const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)].replace('{user}', `<@${member.id}>`);
+                    await channel.send(msg);
+                }
+            }, 1000);
+            activeTimers.set(member.id, interval);
+        }
+
+        break; // stop checking after first mistake
     }
 });
+
 
 
 
