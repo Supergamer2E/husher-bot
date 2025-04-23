@@ -41,18 +41,26 @@ function getTimeoutDuration(userId) {
 }
 
 async function generateJailAvatar(user) {
-    const avatarURL = user.displayAvatarURL({ extension: 'png', size: 256 });
-    const avatar = await loadImage(avatarURL);
-    const jailOverlay = await loadImage('./assets/jail_overlay.png');
-    const canvas = createCanvas(256, 256);
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(avatar, 0, 0, 256, 256);
-    ctx.drawImage(jailOverlay, 0, 0, 256, 256);
-    const buffer = canvas.toBuffer('image/png');
-    const filePath = `./tmp/jail_${user.id}.png`;
-    fs.writeFileSync(filePath, buffer);
-    return filePath;
+    try {
+        const avatarURL = user.displayAvatarURL({ extension: 'png', size: 256 });
+        const avatar = await loadImage(avatarURL);
+        const jailOverlay = await loadImage('./assets/jail_overlay.png');
+
+        const canvas = createCanvas(256, 256);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(avatar, 0, 0, 256, 256);
+        ctx.drawImage(jailOverlay, 0, 0, 256, 256);
+
+        const buffer = canvas.toBuffer('image/png');
+        const filePath = `./tmp/jail_${user.id}.png`;
+        fs.writeFileSync(filePath, buffer);
+        return filePath;
+    } catch (err) {
+        console.error(`❌ Failed to generate jail avatar for ${user.tag}:`, err.message);
+        return null; // fallback if avatar can't be generated
+    }
 }
+
 
 const commands = [
     new SlashCommandBuilder().setName('hush').setDescription('Put a user in timeout')
