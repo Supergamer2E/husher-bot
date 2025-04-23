@@ -184,7 +184,8 @@ if (announcementChannel) await announcementChannel.send(msg);
 
 client.on('messageCreate', async message => {
     if (!spell || message.author.bot || !message.guild || message.channel.name !== 'general') return;
-    if (!spell || message.author.bot || !message.guild) return;
+    if (message.content.startsWith('/') || message.content.startsWith('t!') || message.content.startsWith('t@')) return;
+
     const content = message.content.toLowerCase();
     const words = content.replace(/[^\w\s]/gi, '').split(/\s+/).filter(Boolean);
 
@@ -205,18 +206,48 @@ client.on('messageCreate', async message => {
             }
 
             const channel = message.guild.channels.cache.find(c => c.name === 'timeouts');
+            const announcementChannel = message.guild.channels.cache.find(c => c.name === 'husher-announcements');
+
             const embed = new EmbedBuilder()
                 .setTitle(success ? `🔇 ${message.author.tag} auto-hushed!` : `⚠️ Tried to hush ${message.author.tag}`)
-                .setDescription(`**Mistake:** \`${word}\`\n**Suggestion:** ${correction}\n**Message:** ${message.content}\n**Offense Count:** ${offenses}`)
+                .setDescription(
+                    `**Mistake:** \`${word}\`\n` +
+                    `**Suggestion:** ${correction}\n` +
+                    `**Message:** ${message.content}\n` +
+                    `**Offense Count:** ${offenses}`
+                )
                 .setColor(success ? 'Red' : 'Orange')
-                .setTimestamp();            
-                if (channel) await channel.send({ embeds: [embed] });
-if (announcementChannel) await announcementChannel.send({ embeds: [embed] });
+                .setTimestamp();
+
+            if (channel) await channel.send({ embeds: [embed] });
+            if (announcementChannel) await announcementChannel.send({ embeds: [embed] });
 
             message.reply({ content: `🚨 Spelling mistake: \`${word}\` → \`${correction}\``, ephemeral: true });
-            break;
+
+            // ⏳ Live timer + comeback
+            let timeLeft = duration / 1000;
+            const comebackMessages = [
+                "🧙 {user} has returned from the Forbidden Section of chat.",
+                "💬 {user} can speak again. The silence was nice.",
+                "🛏️ {user} has left the timeout dimension.",
+                "🎮 {user} has re-entered the game.",
+                "🔔 {user} has been released. Try to behave... maybe."
+            ].concat(loadCustomComebacks());
+
+            const interval = setInterval(async () => {
+                timeLeft -= 60;
+                if (timeLeft <= 0) {
+                    clearInterval(interval);
+                    const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)].replace('{user}', `<@${message.author.id}>`);
+                    if (channel) await channel.send(msg);
+                    if (announcementChannel) await announcementChannel.send(msg);
+                }
+            }, 60000);
+
+            break; // stop after first mistake
         }
     }
 });
+
 
 client.login(TOKEN);
