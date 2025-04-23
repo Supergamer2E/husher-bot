@@ -7,9 +7,9 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "discord.js": "^14.0.0",
-    "nspell": "^2.0.0",
-    "dictionary-en": "^2.0.0",
-    "canvas": "^2.11.2"
-  }
+  "discord.js": "^14.0.0",
+  "nspell": "^2.0.0",
+  "dictionary-en": "^3.0.0",
+  "canvas": "^2.11.2"
+}
 }
