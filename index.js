@@ -1,5 +1,5 @@
 // index.js
-import { Client, GatewayIntentBits, Partials, EmbedBuilder, SlashCommandBuilder, REST, Routes, PermissionsBitField } from 'discord.js';
+import { Client, GatewayIntentBits, Partials, EmbedBuilder, SlashCommandBuilder, REST, Routes } from 'discord.js';
 import fs from 'fs';
 import dictionary from 'dictionary-en';
 import nspell from 'nspell';
@@ -99,77 +99,13 @@ client.once('ready', () => {
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
     const { commandName } = interaction;
-
     try {
-        if (commandName === 'hush') {
-            if (!interaction.member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) {
-                return await interaction.reply({ content: '❌ You do not have permission to use this command.', flags: 1 << 6 });
-            }
-
-            const target = interaction.options.getUser('target');
-            const member = await interaction.guild.members.fetch(target.id);
-            const reason = interaction.options.getString('reason');
-            const corrector = interaction.options.getUser('corrector');
-            const duration = getTimeoutDuration(target.id);
-            const offenses = userTimeouts[target.id];
-            const announcementChannel = interaction.guild.channels.cache.find(c => c.name === 'husher-announcements');
-
-            let success = true;
-            try {
-                await member.timeout(duration, reason);
-            } catch {
-                success = false;
-            }
-
-            const embed = new EmbedBuilder()
-                .setTitle(success ? `🔇 ${target.tag} has been hushed!` : `⚠️ Tried to hush ${target.tag}`)
-                .setDescription(
-                    `**Reason:** ${reason}\n` +
-                    (corrector ? `**Corrected by:** ${corrector}\n` : '') +
-                    (success ? `**Time Remaining:** <t:${Math.floor((Date.now() + duration) / 1000)}:R>\n` : '*Could not apply timeout.*\n') +
-                    `**Offense Count Today:** ${offenses}`
-                )
-                .setColor(success ? 'Blue' : 'Orange')
-                .setTimestamp();
-
-            await announcementChannel?.send({ embeds: [embed] });
-            await interaction.reply({ content: `✅ Hushed ${target.tag} for ${duration / 60000} minutes.`, flags: 1 << 6 });
-
-            if (announcementChannel) {
-                let timeLeft = duration / 1000;
-                const comebackMessages = loadCustomComebacks().concat([
-                    '🧙 {user} has returned from the Forbidden Section of chat.',
-                    '💬 {user} can speak again. The silence was nice.',
-                    '🛏️ {user} has left the timeout dimension.',
-                    '🎮 {user} has re-entered the game.',
-                    '🔔 {user} has been released. Try to behave... maybe.'
-                ]);
-
-                const timerMessage = await announcementChannel.send(`⏳ <@${member.id}> is in timeout for ${formatTime(timeLeft)}`);
-                const interval = setInterval(async () => {
-                    timeLeft--;
-                    if (timeLeft > 0) {
-                        await timerMessage.edit(`⏳ <@${member.id}> has ${formatTime(timeLeft)} remaining...`);
-                    } else {
-                        clearInterval(interval);
-                        activeTimers.delete(member.id);
-                        try { await timerMessage.delete(); } catch {}
-                        const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)].replace('{user}', `<@${member.id}>`);
-                        await announcementChannel.send(msg);
-                    }
-                }, 1000);
-                activeTimers.set(member.id, interval);
-            }
-        }
-
-        // other commands...
-
-    } catch (error) {
-        console.error("❌ Command handler error:", error);
-        if (interaction.deferred || interaction.replied) {
-            await interaction.editReply({ content: '⚠️ An error occurred while processing the command.' });
-        } else {
-            await interaction.reply({ content: '⚠️ An error occurred while processing the command.', flags: 1 << 6 });
+        const commandModule = await import(`./commands/${commandName}.js`);
+        await commandModule.default(interaction, { userTimeouts, activeTimers, loadCustomComebacks, saveCustomComebacks, getTimeoutDuration, formatTime });
+    } catch (err) {
+        console.error(`❌ Error handling command '${commandName}':`, err);
+        if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: '⚠️ An error occurred.', ephemeral: true });
         }
     }
 });
@@ -189,14 +125,10 @@ client.on('messageCreate', async message => {
             const member = await message.guild.members.fetch(message.author.id);
             const duration = getTimeoutDuration(member.id);
             const offenses = userTimeouts[member.id];
-            const announcementChannel = message.guild.channels.cache.find(c => c.name === 'husher-announcements');
+            const channel = message.guild.channels.cache.find(c => c.name === 'husher-announcements');
 
             let success = true;
-            try {
-                await member.timeout(duration, 'Spelling/grammar mistake');
-            } catch {
-                success = false;
-            }
+            try { await member.timeout(duration, 'Spelling/grammar mistake'); } catch { success = false; }
 
             const embed = new EmbedBuilder()
                 .setTitle(success ? `🔇 ${message.author.tag} auto-hushed!` : `⚠️ Tried to hush ${message.author.tag}`)
@@ -204,10 +136,10 @@ client.on('messageCreate', async message => {
                 .setColor(success ? 'Red' : 'Orange')
                 .setTimestamp();
 
-            await announcementChannel?.send({ embeds: [embed] });
-            await message.reply({ content: `🚨 Spelling mistake: \`${word}\` → \`${correction}\``, flags: 1 << 6 });
+            if (channel) await channel.send({ embeds: [embed] });
+            await message.reply({ content: `🚨 Spelling mistake: \`${word}\` → \`${correction}\``, ephemeral: true });
 
-            if (announcementChannel) {
+            if (channel) {
                 let timeLeft = duration / 1000;
                 const comebackMessages = loadCustomComebacks().concat([
                     '🧙 {user} has returned from the Forbidden Section of chat.',
@@ -217,7 +149,7 @@ client.on('messageCreate', async message => {
                     '🔔 {user} has been released. Try to behave... maybe.'
                 ]);
 
-                const timerMessage = await announcementChannel.send(`⏳ <@${member.id}> is in timeout for ${formatTime(timeLeft)}`);
+                const timerMessage = await channel.send(`⏳ <@${member.id}> is in timeout for ${formatTime(timeLeft)}`);
                 const interval = setInterval(async () => {
                     timeLeft--;
                     if (timeLeft > 0) {
@@ -227,7 +159,7 @@ client.on('messageCreate', async message => {
                         activeTimers.delete(member.id);
                         try { await timerMessage.delete(); } catch {}
                         const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)].replace('{user}', `<@${member.id}>`);
-                        await announcementChannel.send(msg);
+                        await channel.send(msg);
                     }
                 }, 1000);
                 activeTimers.set(member.id, interval);
