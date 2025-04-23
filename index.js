@@ -26,7 +26,7 @@ function formatTime(seconds) {
 }
 
 const userTimeouts = {};
-const timeoutIntervals = {};
+const activeTimers = new Map();
 let currentDate = new Date().toDateString();
 const whitelist = ['lol', 'tbh', 'idk', 'discord', 'minecraft'];
 
@@ -53,20 +53,11 @@ const commands = [
         .addStringOption(opt => opt.setName('reason').setDescription('Reason for timeout').setRequired(true))
         .addUserOption(opt => opt.setName('corrector').setDescription('Who corrected them (optional)')),
     new SlashCommandBuilder()
-        .setName('unhush')
-        .setDescription('Release a user early from timeout')
-        .addUserOption(opt => opt.setName('target').setDescription('Target user').setRequired(true))
-        .addBooleanOption(opt => opt.setName('reduce_offense').setDescription('Remove one offense count?')),
-    new SlashCommandBuilder()
         .setName('reset-hushes')
         .setDescription('Reset all hush offense counts for the day'),
     new SlashCommandBuilder()
         .setName('hush-info')
         .setDescription('Check hush offense count')
-        .addUserOption(opt => opt.setName('target').setDescription('Target user').setRequired(true)),
-    new SlashCommandBuilder()
-        .setName('remove-offense')
-        .setDescription('Manually remove an offense from a user')
         .addUserOption(opt => opt.setName('target').setDescription('Target user').setRequired(true)),
     new SlashCommandBuilder()
         .setName('custom-comeback')
@@ -79,7 +70,16 @@ const commands = [
             sub.setName('remove')
                 .setDescription('Remove by index')
                 .addIntegerOption(opt => opt.setName('index').setDescription('Message index').setRequired(true)))
-        .addSubcommand(sub => sub.setName('list').setDescription('List all custom comeback messages'))
+        .addSubcommand(sub => sub.setName('list').setDescription('List all custom comeback messages')),
+    new SlashCommandBuilder()
+        .setName('unhush')
+        .setDescription('Remove a user from timeout')
+        .addUserOption(opt => opt.setName('target').setDescription('User to unhush').setRequired(true))
+        .addBooleanOption(opt => opt.setName('reduce-offense').setDescription('Reduce offense count?')),
+    new SlashCommandBuilder()
+        .setName('remove-offense')
+        .setDescription('Manually reduce a user offense count')
+        .addUserOption(opt => opt.setName('target').setDescription('User').setRequired(true))
 ].map(cmd => cmd.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
@@ -106,118 +106,110 @@ client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
     const { commandName } = interaction;
 
-    const announcementChannel = interaction.guild.channels.cache.find(c => c.name === 'husher-announcements');
-
-    if (commandName === 'hush') {
-        const target = interaction.options.getUser('target');
-        const member = await interaction.guild.members.fetch(target.id);
-        const reason = interaction.options.getString('reason');
-        const corrector = interaction.options.getUser('corrector');
-        const duration = getTimeoutDuration(target.id);
-        const offenses = userTimeouts[target.id];
-
-        let success = true;
-        try {
-            await member.timeout(duration, reason);
-        } catch (err) {
-            success = false;
-        }
-
-        const embed = new EmbedBuilder()
-            .setTitle(success ? `🔇 ${target.tag} has been hushed!` : `⚠️ Tried to hush ${target.tag}`)
-            .setDescription(
-                `**Reason:** ${reason}` +
-                (corrector ? `\n**Corrected by:** ${corrector}` : '') +
-                (success ? `\n**Time Remaining:** <t:${Math.floor((Date.now() + duration) / 1000)}:R>` : '*Could not apply timeout.*') +
-                `\n**Offense Count Today:** ${offenses}`
-            )
-            .setColor(success ? 'Blue' : 'Orange')
-            .setTimestamp();
-
-        if (announcementChannel) await announcementChannel.send({ embeds: [embed] });
-
-        await interaction.reply({ content: `✅ Hushed ${target.tag} for ${duration / 60000} mins.`, ephemeral: true });
-
-        if (announcementChannel) {
-            let timeLeft = duration / 1000;
-            const comebackMessages = loadCustomComebacks();
-            const timerMessage = await announcementChannel.send(`⏳ <@${target.id}> is in timeout for ${formatTime(timeLeft)}`);
-            timeoutIntervals[target.id] = setInterval(async () => {
-                timeLeft--;
-                if (timeLeft > 0) {
-                    await timerMessage.edit(`⏳ <@${target.id}> has ${formatTime(timeLeft)} remaining...`);
-                } else {
-                    clearInterval(timeoutIntervals[target.id]);
-                    delete timeoutIntervals[target.id];
-                    await timerMessage.delete();
-                    const msg = (comebackMessages[Math.floor(Math.random() * comebackMessages.length)] || "<@{user}> is free!").replace('{user}', `<@${target.id}>`);
-                    await announcementChannel.send(msg);
-                }
-            }, 1000);
-        }
-    }
-
     if (commandName === 'unhush') {
         const target = interaction.options.getUser('target');
+        const reduce = interaction.options.getBoolean('reduce-offense');
         const member = await interaction.guild.members.fetch(target.id);
-        const reduce = interaction.options.getBoolean('reduce_offense');
+        const channel = interaction.guild.channels.cache.find(c => c.name === 'husher-announcements');
+
+        if (activeTimers.has(target.id)) {
+            clearInterval(activeTimers.get(target.id));
+            activeTimers.delete(target.id);
+        }
+
         try {
             await member.timeout(null);
-        } catch {}
-        if (timeoutIntervals[target.id]) {
-            clearInterval(timeoutIntervals[target.id]);
-            delete timeoutIntervals[target.id];
-        }
-        if (reduce && userTimeouts[target.id] > 0) userTimeouts[target.id]--;
-        if (announcementChannel) {
-            const msg = (loadCustomComebacks()[Math.floor(Math.random() * loadCustomComebacks().length)] || "<@{user}> is free!").replace('{user}', `<@${target.id}>`);
-            await announcementChannel.send(msg);
-        }
-        await interaction.reply({ content: `✅ ${target.tag} released${reduce ? ' and offense count reduced.' : '.'}`, ephemeral: true });
-    }
+        } catch (e) {}
 
-    if (commandName === 'reset-hushes') {
-        for (const key in userTimeouts) delete userTimeouts[key];
-        currentDate = new Date().toDateString();
-        interaction.reply({ content: '✅ All offenses reset for today.', ephemeral: true });
-    }
+        if (reduce && userTimeouts[target.id]) {
+            userTimeouts[target.id] = Math.max(0, userTimeouts[target.id] - 1);
+        }
 
-    if (commandName === 'hush-info') {
-        const target = interaction.options.getUser('target');
-        const offenses = userTimeouts[target.id] || 0;
-        interaction.reply({ content: `📊 ${target.tag} has been hushed ${offenses} time(s) today.`, ephemeral: true });
+        const msg = loadCustomComebacks().concat([
+            "🧙 {user} has returned from the Forbidden Section of chat.",
+            "💬 {user} can speak again. The silence was nice.",
+            "🛏️ {user} has left the timeout dimension.",
+            "🎮 {user} has re-entered the game.",
+            "🔔 {user} has been released. Try to behave... maybe."
+        ]);
+        const comeback = msg[Math.floor(Math.random() * msg.length)].replace('{user}', `<@${target.id}>`);
+
+        await channel?.send(comeback);
+        interaction.reply({ content: `✅ ${target.tag} has been unhushed.`, ephemeral: true });
     }
 
     if (commandName === 'remove-offense') {
         const target = interaction.options.getUser('target');
-        if (userTimeouts[target.id] && userTimeouts[target.id] > 0) {
-            userTimeouts[target.id]--;
+        if (userTimeouts[target.id]) {
+            userTimeouts[target.id] = Math.max(0, userTimeouts[target.id] - 1);
         }
-        interaction.reply({ content: `🧹 Removed 1 offense from ${target.tag}.`, ephemeral: true });
+        interaction.reply({ content: `✅ ${target.tag}'s offense count reduced.`, ephemeral: true });
     }
+});
 
-    if (commandName === 'custom-comeback') {
-        const sub = interaction.options.getSubcommand();
-        let list = loadCustomComebacks();
+client.on('messageCreate', async message => {
+    if (!spell || message.author.bot || !message.guild || message.channel.name !== 'general') return;
+    if (message.content.startsWith('/') || message.content.startsWith('t!') || message.content.startsWith('t@')) return;
 
-        if (sub === 'add') {
-            const msg = interaction.options.getString('message');
-            list.push(msg);
-            saveCustomComebacks(list);
-            interaction.reply({ content: `✅ Added: \`${msg}\``, ephemeral: true });
-        }
+    const content = message.content.toLowerCase();
+    const words = content.replace(/[^\w\s]/gi, '').split(/\s+/).filter(Boolean);
 
-        if (sub === 'remove') {
-            const i = interaction.options.getInteger('index');
-            if (i < 0 || i >= list.length) return interaction.reply({ content: '❌ Invalid index.', ephemeral: true });
-            const removed = list.splice(i, 1);
-            saveCustomComebacks(list);
-            interaction.reply({ content: `🗑️ Removed: \`${removed[0]}\``, ephemeral: true });
-        }
+    for (const word of words) {
+        if (!spell.correct(word) && !whitelist.includes(word)) {
+            const suggestions = spell.suggest(word);
+            const correction = suggestions[0] || 'no suggestions';
 
-        if (sub === 'list') {
-            const result = list.map((msg, i) => `**${i}:** ${msg}`).join('\n') || 'No custom comebacks.';
-            interaction.reply({ content: result, ephemeral: true });
+            const member = await message.guild.members.fetch(message.author.id);
+            const duration = getTimeoutDuration(member.id);
+            const offenses = userTimeouts[member.id];
+            const announcementChannel = message.guild.channels.cache.find(c => c.name === 'husher-announcements');
+
+            let success = true;
+            try {
+                await member.timeout(duration, 'Spelling/grammar mistake');
+            } catch (err) {
+                success = false;
+            }
+
+            const embed = new EmbedBuilder()
+                .setTitle(success ? `🔇 ${message.author.tag} auto-hushed!` : `⚠️ Tried to hush ${message.author.tag}`)
+                .setDescription(`**Mistake:** \`${word}\`
+**Suggestion:** ${correction}
+**Message:** ${message.content}
+**Offense Count:** ${offenses}`)
+                .setColor(success ? 'Red' : 'Orange')
+                .setTimestamp();
+
+            await announcementChannel?.send({ embeds: [embed] });
+            await message.reply({ content: `🚨 Spelling mistake: \`${word}\` → \`${correction}\``, ephemeral: true });
+
+            if (announcementChannel) {
+                let timeLeft = duration / 1000;
+                const comebackMessages = loadCustomComebacks().concat([
+                    "🧙 {user} has returned from the Forbidden Section of chat.",
+                    "💬 {user} can speak again. The silence was nice.",
+                    "🛏️ {user} has left the timeout dimension.",
+                    "🎮 {user} has re-entered the game.",
+                    "🔔 {user} has been released. Try to behave... maybe."
+                ]);
+
+                const timerMessage = await announcementChannel.send(`⏳ <@${member.id}> is in timeout for ${formatTime(timeLeft)}`);
+                const interval = setInterval(async () => {
+                    timeLeft--;
+                    if (timeLeft > 0) {
+                        await timerMessage.edit(`⏳ <@${member.id}> has ${formatTime(timeLeft)} remaining...`);
+                    } else {
+                        clearInterval(interval);
+                        activeTimers.delete(member.id);
+                        try { await timerMessage.delete(); } catch {}
+                        const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)].replace('{user}', `<@${member.id}>`);
+                        await announcementChannel.send(msg);
+                    }
+                }, 1000);
+                activeTimers.set(member.id, interval);
+            }
+
+            break;
         }
     }
 });
