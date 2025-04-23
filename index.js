@@ -141,15 +141,21 @@ client.on('messageCreate', async message => {
     if (!spell || message.author.bot || !message.guild || message.channel.name !== 'general') return;
     if (message.content.startsWith('/') || message.content.startsWith('t!') || message.content.startsWith('t@')) return;
 
-    const normalizeWord = word => word.replace(/(\w)\1{2,}/g, '$1$1'); // Collapse repeated letters
+    const normalizeWord = word => word.replace(/(\w)\1{2,}/gi, '$1$1'); // Collapse long repeats
+    const rawWords = message.content
+        .replace(/[^\w\s']/gi, '') // keep apostrophes for words like "I'm"
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(normalizeWord);
 
-    const content = message.content.toLowerCase();
-    const words = content.replace(/[^\w\s']/gi, '').split(/\s+/).filter(Boolean);
+    const words = rawWords.map(w => w.toLowerCase());
 
-    for (const word of words) {
-        const normalized = normalizeWord(word);
-        if (!spell.correct(normalized) && !whitelist.includes(normalized)) {
-            const suggestions = spell.suggest(normalized);
+    for (let i = 0; i < words.length; i++) {
+        const original = rawWords[i];
+        const lower = words[i];
+
+        if (!spell.correct(lower) && !whitelist.includes(lower)) {
+            const suggestions = spell.suggest(lower).map(s => s.toLowerCase());
             const correction = suggestions[0] || 'no suggestions';
 
             const member = await message.guild.members.fetch(message.author.id);
@@ -162,12 +168,12 @@ client.on('messageCreate', async message => {
 
             const embed = new EmbedBuilder()
                 .setTitle(success ? `🔇 ${message.author.tag} auto-hushed!` : `⚠️ Tried to hush ${message.author.tag}`)
-                .setDescription(`**Mistake:** \`${word}\`\n**Suggestion:** ${correction}\n**Message:** ${message.content}\n**Offense Count:** ${offenses}`)
+                .setDescription(`**Mistake:** \`${original}\`\n**Suggestion:** ${correction}\n**Message:** ${message.content}\n**Offense Count:** ${offenses}`)
                 .setColor(success ? 'Red' : 'Orange')
                 .setTimestamp();
 
             if (channel) await channel.send({ embeds: [embed] });
-            await message.reply({ content: `🚨 Spelling mistake: \`${word}\` → \`${correction}\``, ephemeral: true });
+            await message.reply({ content: `🚨 Spelling mistake: \`${original}\` → \`${correction}\``, ephemeral: true });
 
             if (channel) {
                 let timeLeft = duration / 1000;
@@ -195,10 +201,11 @@ client.on('messageCreate', async message => {
                 activeTimers.set(member.id, interval);
             }
 
-            break;
+            break; // Only correct first detected mistake
         }
     }
 });
+
 
 
 client.login(TOKEN);
