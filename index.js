@@ -5,6 +5,8 @@ import dictionary from 'dictionary-en';
 import nspell from 'nspell';
 import process from 'process';
 
+global.autocorrectEnabled = true;
+
 const TOKEN = process.env.DISCORD_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
@@ -135,6 +137,7 @@ client.on('interactionCreate', async interaction => {
 
 
 client.on('messageCreate', async message => {
+    if (!global.autocorrectEnabled) return;
     if (!spell || message.author.bot || !message.guild || message.channel.name !== 'general') return;
     if (message.content.startsWith('/') || message.content.startsWith('t!') || message.content.startsWith('t@')) return;
 
