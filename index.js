@@ -1,11 +1,7 @@
 // index.js
 import { Client, GatewayIntentBits, Partials, EmbedBuilder, SlashCommandBuilder, REST, Routes } from 'discord.js';
 import fs from 'fs';
-import dictionary from 'dictionary-en';
-import nspell from 'nspell';
 import process from 'process';
-
-global.autocorrectEnabled = true;
 
 const TOKEN = process.env.DISCORD_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
@@ -75,18 +71,7 @@ const commands = [
     new SlashCommandBuilder()
         .setName('remove-offense')
         .setDescription('Manually reduce a user offense count')
-        .addUserOption(opt => opt.setName('target').setDescription('User').setRequired(true)),
-    new SlashCommandBuilder()
-        .setName('whitelist-add')
-        .setDescription('Add a word to the autocorrect whitelist')
-        .addStringOption(opt => opt.setName('word').setDescription('Word to whitelist').setRequired(true)),
-    new SlashCommandBuilder()
-        .setName('whitelist-remove')
-        .setDescription('Remove a word from the autocorrect whitelist')
-        .addStringOption(opt => opt.setName('word').setDescription('Word to remove').setRequired(true)),
-    new SlashCommandBuilder()
-        .setName('toggle-autocorrect')
-        .setDescription('Enable or disable autocorrect globally')
+        .addUserOption(opt => opt.setName('target').setDescription('User').setRequired(true))
 ].map(cmd => cmd.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
@@ -98,12 +83,6 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
         console.error(err);
     }
 })();
-
-let spell;
-dictionary((err, dict) => {
-    if (err) throw err;
-    spell = nspell(dict);
-});
 
 client.once('ready', () => {
     console.log(`🤖 The Husher is online as ${client.user.tag}`);
@@ -122,10 +101,7 @@ client.on('interactionCreate', async interaction => {
             saveCustomComebacks,
             getTimeoutDuration,
             formatTime,
-            whitelist,
-            spell,
-            autocorrectEnabled: global.autocorrectEnabled ?? true,
-            toggleAutocorrect: (state) => global.autocorrectEnabled = state
+            whitelist
         });
     } catch (err) {
         console.error(`❌ Error handling command '${commandName}':`, err);
@@ -134,103 +110,5 @@ client.on('interactionCreate', async interaction => {
         }
     }
 });
-
-
-client.on('messageCreate', async message => {
-    if (!global.autocorrectEnabled) return;
-    if (!spell || message.author.bot || !message.guild || message.channel.name !== 'general') return;
-    if (message.content.startsWith('/') || message.content.startsWith('t!') || message.content.startsWith('t@')) return;
-
-    const originalContent = message.content;
-    const words = originalContent.match(/\b[\w']+\b/g)?.filter(Boolean) || [];
-    const problematicWord = words.find(word => {
-        const lower = word.toLowerCase();
-        return !whitelist.includes(lower) && !spell.correct(lower);
-    });
-
-    if (!problematicWord) return;
-
-    const generalChannel = message.channel;
-    const member = await message.guild.members.fetch(message.author.id);
-    const duration = getTimeoutDuration(member.id);
-    const offenses = userTimeouts[member.id];
-
-    const warningMsg = await generalChannel.send(
-        `⚠️ <@${message.author.id}> Potential spelling mistake detected. You have 15 seconds to fix your message.`
-    );
-
-    let timeLeft = 15;
-    const countdown = setInterval(async () => {
-        timeLeft--;
-        if (timeLeft > 0) {
-            try {
-                await warningMsg.edit(`⚠️ <@${message.author.id}> You have ${timeLeft} second${timeLeft !== 1 ? 's' : ''} left to fix your message.`);
-            } catch {}
-        } else {
-            clearInterval(countdown);
-        }
-    }, 1000);
-
-    const collector = message.channel.createMessageCollector({
-        filter: m => m.id === message.id,
-        time: 15000
-    });
-
-    collector.on('end', async () => {
-        clearInterval(countdown);
-        const edited = await message.fetch();
-        const newWords = edited.content.match(/\b[\w']+\b/g)?.filter(Boolean) || [];
-        const stillProblem = newWords.find(word => {
-            const lower = word.toLowerCase();
-            return !whitelist.includes(lower) && !spell.correct(lower);
-        });
-
-        if (!stillProblem) {
-            await warningMsg.edit(`✅ <@${message.author.id}> Message fixed. No timeout applied.`);
-            return;
-        }
-
-        let success = true;
-        try {
-            await member.timeout(duration, 'Spelling/grammar mistake');
-        } catch {
-            success = false;
-        }
-
-        const embed = new EmbedBuilder()
-            .setTitle(success ? `🔇 ${message.author.tag} auto-hushed!` : `⚠️ Tried to hush ${message.author.tag}`)
-            .setDescription(`**Mistake:** \`${stillProblem}\`\n**Message:** ${edited.content}\n**Offense Count:** ${offenses}`)
-            .setColor(success ? 'Red' : 'Orange')
-            .setTimestamp();
-
-        const announcementChannel = message.guild.channels.cache.find(c => c.name === 'husher-announcements');
-        if (announcementChannel) await announcementChannel.send({ embeds: [embed] });
-
-        const comebackMessages = loadCustomComebacks().concat([
-            '🧙 {user} has returned from the Forbidden Section of chat.',
-            '💬 {user} can speak again. The silence was nice.',
-            '🛏️ {user} has left the timeout dimension.',
-            '🎮 {user} has re-entered the game.',
-            '🔔 {user} has been released. Try to behave... maybe.'
-        ]);
-
-        let timeRemaining = duration / 1000;
-        const timerMessage = await announcementChannel?.send(`⏳ <@${member.id}> is in timeout for ${formatTime(timeRemaining)}`);
-        const interval = setInterval(async () => {
-            timeRemaining--;
-            if (timeRemaining > 0) {
-                await timerMessage.edit(`⏳ <@${member.id}> has ${formatTime(timeRemaining)} remaining...`);
-            } else {
-                clearInterval(interval);
-                activeTimers.delete(member.id);
-                try { await timerMessage.delete(); } catch {}
-                const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)].replace('{user}', `<@${member.id}>`);
-                await announcementChannel?.send(msg);
-            }
-        }, 1000);
-        activeTimers.set(member.id, interval);
-    });
-});
-
 
 client.login(TOKEN);
