@@ -142,63 +142,74 @@ client.on('messageCreate', async message => {
     if (message.content.startsWith('/') || message.content.startsWith('t!') || message.content.startsWith('t@')) return;
 
     const content = message.content;
-    const words = content.replace(/[^\w\s']/gi, '').split(/\s+/).filter(Boolean);
+    const words = content.match(/\b[\w']+\b/g)?.filter(Boolean) || [];
 
     for (const word of words) {
-        const lower = word.toLowerCase();
-        if (!spell.correct(lower) && !whitelist.includes(lower)) {
-            const suggestions = spell.suggest(lower);
-            const correction = suggestions[0] || 'no suggestions';
+        const lowerWord = word.toLowerCase();
 
-            const member = await message.guild.members.fetch(message.author.id);
-            const duration = getTimeoutDuration(member.id);
-            const offenses = userTimeouts[member.id];
-            const channel = message.guild.channels.cache.find(c => c.name === 'husher-announcements');
+        // Skip whitelisted words
+        if (whitelist.includes(lowerWord)) continue;
 
-            let success = true;
-            try { await member.timeout(duration, 'Spelling/grammar mistake'); } catch { success = false; }
+        // Skip if spellchecker thinks it's valid
+        if (spell.correct(lowerWord)) continue;
 
-            const embed = new EmbedBuilder()
-                .setTitle(success ? `🔇 ${message.author.tag} auto-hushed!` : `⚠️ Tried to hush ${message.author.tag}`)
-                .setDescription(`**Mistake:** \`${word}\`\n**Suggestion:** ${correction}\n**Message:** ${message.content}\n**Offense Count:** ${offenses}`)
-                .setColor(success ? 'Red' : 'Orange')
-                .setTimestamp();
+        const suggestions = spell.suggest(lowerWord);
+        const correction = suggestions[0] || 'no suggestions';
 
-            if (channel) await channel.send({ embeds: [embed] });
-            await message.reply({ content: `🚨 Spelling mistake: \`${word}\` → \`${correction}\``, ephemeral: true });
+        // Skip if the suggestion is just a casing variant
+        if (correction.toLowerCase() === lowerWord) continue;
 
-            if (channel) {
-                let timeLeft = duration / 1000;
-                const comebackMessages = loadCustomComebacks().concat([
-                    '🧙 {user} has returned from the Forbidden Section of chat.',
-                    '💬 {user} can speak again. The silence was nice.',
-                    '🛏️ {user} has left the timeout dimension.',
-                    '🎮 {user} has re-entered the game.',
-                    '🔔 {user} has been released. Try to behave... maybe.'
-                ]);
+        // Fetch offender and calculate timeout
+        const member = await message.guild.members.fetch(message.author.id);
+        const duration = getTimeoutDuration(member.id);
+        const offenses = userTimeouts[member.id];
+        const channel = message.guild.channels.cache.find(c => c.name === 'husher-announcements');
 
-                const timerMessage = await channel.send(`⏳ <@${member.id}> is in timeout for ${formatTime(timeLeft)}`);
-                const interval = setInterval(async () => {
-                    timeLeft--;
-                    if (timeLeft > 0) {
-                        await timerMessage.edit(`⏳ <@${member.id}> has ${formatTime(timeLeft)} remaining...`);
-                    } else {
-                        clearInterval(interval);
-                        activeTimers.delete(member.id);
-                        try { await timerMessage.delete(); } catch {}
-                        const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)].replace('{user}', `<@${member.id}>`);
-                        await channel.send(msg);
-                    }
-                }, 1000);
-                activeTimers.set(member.id, interval);
-            }
-
-            break;
+        let success = true;
+        try {
+            await member.timeout(duration, 'Spelling/grammar mistake');
+        } catch {
+            success = false;
         }
+
+        const embed = new EmbedBuilder()
+            .setTitle(success ? `🔇 ${message.author.tag} auto-hushed!` : `⚠️ Tried to hush ${message.author.tag}`)
+            .setDescription(`**Mistake:** \`${word}\`\n**Suggestion:** ${correction}\n**Message:** ${message.content}\n**Offense Count:** ${offenses}`)
+            .setColor(success ? 'Red' : 'Orange')
+            .setTimestamp();
+
+        if (channel) await channel.send({ embeds: [embed] });
+        await message.reply({ content: `🚨 Spelling mistake: \`${word}\` → \`${correction}\``, ephemeral: true });
+
+        // Timer announcement
+        if (channel) {
+            let timeLeft = duration / 1000;
+            const comebackMessages = loadCustomComebacks().concat([
+                '🧙 {user} has returned from the Forbidden Section of chat.',
+                '💬 {user} can speak again. The silence was nice.',
+                '🛏️ {user} has left the timeout dimension.',
+                '🎮 {user} has re-entered the game.',
+                '🔔 {user} has been released. Try to behave... maybe.'
+            ]);
+
+            const timerMessage = await channel.send(`⏳ <@${member.id}> is in timeout for ${formatTime(timeLeft)}`);
+            const interval = setInterval(async () => {
+                timeLeft--;
+                if (timeLeft > 0) {
+                    await timerMessage.edit(`⏳ <@${member.id}> has ${formatTime(timeLeft)} remaining...`);
+                } else {
+                    clearInterval(interval);
+                    activeTimers.delete(member.id);
+                    try { await timerMessage.delete(); } catch {}
+                    const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)].replace('{user}', `<@${member.id}>`);
+                    await channel.send(msg);
+                }
+            }, 1000);
+            activeTimers.set(member.id, interval);
+        }
+
+        break; // Stop checking after first mistake
     }
 });
-
-
-
 
 client.login(TOKEN);
