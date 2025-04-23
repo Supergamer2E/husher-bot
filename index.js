@@ -142,7 +142,11 @@ client.on('messageCreate', async message => {
     if (message.content.startsWith('/') || message.content.startsWith('t!') || message.content.startsWith('t@')) return;
 
     const content = message.content;
-    const words = content.match(/\b[\w']+\b/g)?.filter(Boolean) || [];
+    const words = content.match(/\b[\w']+\b/g)?.filter(w =>
+    isNaN(w) &&                      // Exclude numbers
+    !/^<@!?(\d+)>$/.test(w) &&       // Exclude mentions
+    !whitelist.includes(w.toLowerCase()) // Still allow whitelist filter
+) || [];
 
     for (const word of words) {
         const lowerWord = word.toLowerCase();
