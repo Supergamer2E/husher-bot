@@ -119,9 +119,7 @@ const announcementChannel = interaction.guild.channels.cache.find(c => c.name ==
             )
             .setColor(success ? 'Blue' : 'Orange')
             .setTimestamp();        await channel.send({ embeds: [embed] });
-            if (announcementChannel) {
-                await announcementChannel.send({ embeds: [embed] });
-              }
+if (announcementChannel) await announcementChannel.send({ embeds: [embed] });
 
         interaction.reply({ content: `✅ Hushed ${target.tag} for ${duration / 60000} mins.`, ephemeral: true });
 
@@ -140,10 +138,7 @@ const announcementChannel = interaction.guild.channels.cache.find(c => c.name ==
                 clearInterval(interval);
                 const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)].replace('{user}', `<@${target.id}>`);
                 await channel.send(msg);
-                if (announcementChannel) {
-                    await announcementChannel.send(msg);
-                  }
-                  
+if (announcementChannel) await announcementChannel.send(msg);
             }
         }, 60000);
     }
@@ -214,9 +209,7 @@ client.on('messageCreate', async message => {
                 .setDescription(`**Mistake:** \`${word}\`\n**Suggestion:** ${correction}\n**Message:** ${message.content}\n**Offense Count:** ${offenses}`)
                 .setColor(success ? 'Red' : 'Orange')
                 .setTimestamp();            await channel.send({ embeds: [embed] });
-                if (announcementChannel) {
-                    await announcementChannel.send({ embeds: [embed] });
-                  }
+if (announcementChannel) await announcementChannel.send({ embeds: [embed] });
 
             message.reply({ content: `🚨 Spelling mistake: \`${word}\` → \`${correction}\``, ephemeral: true });
             break;
