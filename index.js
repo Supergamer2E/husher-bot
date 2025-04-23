@@ -88,6 +88,10 @@ dictionary((err, dict) => {
     spell = nspell(dict);
 });
 
+client.once('ready', () => {
+    console.log(`🤖 The Husher is online as ${client.user.tag}`);
+});
+
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
     const { commandName } = interaction;
@@ -112,9 +116,12 @@ client.on('interactionCreate', async interaction => {
         const embed = new EmbedBuilder()
             .setTitle(success ? `🔇 ${target.tag} has been hushed!` : `⚠️ Tried to hush ${target.tag}`)
             .setDescription(
-                `**Reason:** ${reason}\n` +
-                (corrector ? `**Corrected by:** ${corrector}\n` : '') +
-                (success ? `**Time Remaining:** <t:${Math.floor((Date.now() + duration) / 1000)}:R>\n` : '*Could not apply timeout due to role hierarchy.*\n') +
+                `**Reason:** ${reason}
+` +
+                (corrector ? `**Corrected by:** ${corrector}
+` : '') +
+                (success ? `**Time Remaining:** <t:${Math.floor((Date.now() + duration) / 1000)}:R>
+` : '*Could not apply timeout due to role hierarchy.*') +
                 `**Offense Count Today:** ${offenses}`
             )
             .setColor(success ? 'Blue' : 'Orange')
@@ -122,9 +129,10 @@ client.on('interactionCreate', async interaction => {
 
         if (announcementChannel) await announcementChannel.send({ embeds: [embed] });
 
-        interaction.reply({ content: `✅ Hushed ${target.tag} for ${duration / 60000} mins.`, ephemeral: true });
+        await interaction.reply({ content: `✅ Hushed ${target.tag} for ${duration / 60000} mins.`, ephemeral: true });
 
-        if (success && announcementChannel) {
+        // Always show a visible countdown in announcements
+        if (announcementChannel) {
             let timeLeft = duration / 1000;
             const comebackMessages = [
                 "🧙 {user} has returned from the Forbidden Section of chat.",
@@ -148,8 +156,7 @@ client.on('interactionCreate', async interaction => {
                     try {
                         await timerMessage.delete();
                     } catch {}
-                    const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)]
-                        .replace('{user}', `<@${member.id}>`);
+                    const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)].replace('{user}', `<@${member.id}>`);
                     await announcementChannel.send(msg);
                 }
             }, 1000);
@@ -194,78 +201,4 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-client.on('messageCreate', async message => {
-    if (!spell || message.author.bot || !message.guild || message.channel.name !== 'general') return;
-    if (message.content.startsWith('/') || message.content.startsWith('t!') || message.content.startsWith('t@')) return;
-
-    const content = message.content.toLowerCase();
-    const words = content.replace(/[^\w\s]/gi, '').split(/\s+/).filter(Boolean);
-
-    for (const word of words) {
-        if (!spell.correct(word) && !whitelist.includes(word)) {
-            const suggestions = spell.suggest(word);
-            const correction = suggestions[0] || 'no suggestions';
-
-            const member = await message.guild.members.fetch(message.author.id);
-            const duration = getTimeoutDuration(member.id);
-            const offenses = userTimeouts[member.id];
-
-            let success = true;
-            try {
-                await member.timeout(duration, 'Spelling/grammar mistake');
-            } catch (err) {
-                success = false;
-            }
-
-            const announcementChannel = message.guild.channels.cache.find(c => c.name === 'husher-announcements');
-
-            const embed = new EmbedBuilder()
-                .setTitle(success ? `🔇 ${message.author.tag} auto-hushed!` : `⚠️ Tried to hush ${message.author.tag}`)
-                .setDescription(`**Mistake:** \`${word}\`\n**Suggestion:** ${correction}\n**Message:** ${message.content}\n**Offense Count:** ${offenses}`)
-                .setColor(success ? 'Red' : 'Orange')
-                .setTimestamp();
-
-            if (announcementChannel) await announcementChannel.send({ embeds: [embed] });
-
-            await message.reply({ content: `🚨 Spelling mistake: \`${word}\` → \`${correction}\``, ephemeral: true });
-
-            if (success && announcementChannel) {
-                let timeLeft = duration / 1000;
-                const comebackMessages = [
-                    "🧙 {user} has returned from the Forbidden Section of chat.",
-                    "💬 {user} can speak again. The silence was nice.",
-                    "🛏️ {user} has left the timeout dimension.",
-                    "🎮 {user} has re-entered the game.",
-                    "🔔 {user} has been released. Try to behave... maybe."
-                ].concat(loadCustomComebacks());
-
-                const timerMessage = await announcementChannel.send(`⏳ <@${member.id}> is in timeout for ${formatTime(timeLeft)}`);
-                const interval = setInterval(async () => {
-                    timeLeft--;
-                    if (timeLeft > 0) {
-                        try {
-                            await timerMessage.edit(`⏳ <@${member.id}> has ${formatTime(timeLeft)} remaining...`);
-                        } catch (e) {
-                            clearInterval(interval);
-                        }
-                    } else {
-                        clearInterval(interval);
-                        try {
-                            await timerMessage.delete();
-                        } catch {}
-                        const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)]
-                            .replace('{user}', `<@${member.id}>`);
-                        await announcementChannel.send(msg);
-                    }
-                }, 1000);
-            }
-            break;
-        }
-    }
-});
-
-client.login(TOKEN).then(() => {
-    console.log(`🤖 The Husher is online as ${client.user.tag}`);
-}).catch(err => {
-    console.error("❌ Bot login failed:", err.message);
-});
+client.login(TOKEN);
