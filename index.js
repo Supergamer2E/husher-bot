@@ -1,10 +1,8 @@
 // index.js
-import { Client, GatewayIntentBits, Partials, EmbedBuilder, SlashCommandBuilder, REST, Routes, AttachmentBuilder } from 'discord.js';
+import { Client, GatewayIntentBits, Partials, EmbedBuilder, SlashCommandBuilder, REST, Routes } from 'discord.js';
 import fs from 'fs';
-import { createCanvas, loadImage } from 'canvas';
 import dictionary from 'dictionary-en';
 import nspell from 'nspell';
-import path from 'path';
 import process from 'process';
 
 const TOKEN = process.env.DISCORD_TOKEN;
@@ -27,7 +25,6 @@ function formatTime(seconds) {
     return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-// Utilities
 const userTimeouts = {};
 let currentDate = new Date().toDateString();
 const whitelist = ['lol', 'tbh', 'idk', 'discord', 'minecraft'];
@@ -47,9 +44,6 @@ function getTimeoutDuration(userId) {
     return group * 5 * 60 * 1000;
 }
 
-
-
-// Slash commands registration
 const commands = [
     new SlashCommandBuilder()
         .setName('hush')
@@ -130,7 +124,6 @@ client.on('interactionCreate', async interaction => {
 
         interaction.reply({ content: `✅ Hushed ${target.tag} for ${duration / 60000} mins.`, ephemeral: true });
 
-        // Live countdown
         if (success && announcementChannel) {
             let timeLeft = duration / 1000;
             const comebackMessages = [
@@ -203,83 +196,3 @@ client.on('interactionCreate', async interaction => {
         }
     }
 });
-
-
-client.on('messageCreate', async message => {
-    if (!spell || message.author.bot || !message.guild || message.channel.name !== 'general') return;
-    if (message.content.startsWith('/') || message.content.startsWith('t!') || message.content.startsWith('t@')) return;
-
-    const content = message.content.toLowerCase();
-    const words = content.replace(/[^\w\s]/gi, '').split(/\s+/).filter(Boolean);
-
-    for (const word of words) {
-        if (!spell.correct(word) && !whitelist.includes(word)) {
-            const suggestions = spell.suggest(word);
-            const correction = suggestions[0] || 'no suggestions';
-
-            const member = await message.guild.members.fetch(message.author.id);
-            const duration = getTimeoutDuration(member.id);
-            const offenses = userTimeouts[member.id];
-
-            let success = true;
-            try {
-                await member.timeout(duration, 'Spelling/grammar mistake');
-            } catch (err) {
-                success = false;
-            }
-
-            const announcementChannel = message.guild.channels.cache.find(c => c.name === 'husher-announcements');
-
-            const embed = new EmbedBuilder()
-                .setTitle(success ? `🔇 ${message.author.tag} auto-hushed!` : `⚠️ Tried to hush ${message.author.tag}`)
-                .setDescription(`**Mistake:** \`${word}\`\n**Suggestion:** ${correction}\n**Message:** ${message.content}\n**Offense Count:** ${offenses}`)
-                .setColor(success ? 'Red' : 'Orange')
-                .setTimestamp();
-
-            if (announcementChannel) await announcementChannel.send({ embeds: [embed] });
-
-            message.reply({ content: `🚨 Spelling mistake: \`${word}\` → \`${correction}\``, ephemeral: true });
-
-            // Live countdown message
-            if (success && announcementChannel) {
-                let timeLeft = duration / 1000;
-                const comebackMessages = [
-                    "🧙 {user} has returned from the Forbidden Section of chat.",
-                    "💬 {user} can speak again. The silence was nice.",
-                    "🛏️ {user} has left the timeout dimension.",
-                    "🎮 {user} has re-entered the game.",
-                    "🔔 {user} has been released. Try to behave... maybe."
-                ].concat(loadCustomComebacks());
-
-                const timerMessage = await announcementChannel.send(`⏳ <@${member.id}> is in timeout for ${formatTime(timeLeft)}`);
-                const interval = setInterval(async () => {
-                    timeLeft--;
-                    if (timeLeft > 0) {
-                        try {
-                            await timerMessage.edit(`⏳ <@${member.id}> has ${formatTime(timeLeft)} remaining...`);
-                        } catch (e) {
-                            console.error("Failed to edit timer message:", e.message);
-                            clearInterval(interval);
-                        }
-                    } else {
-                        clearInterval(interval);
-                        try {
-                            await timerMessage.delete();
-                        } catch (e) {
-                            console.warn("Couldn't delete timer message:", e.message);
-                        }
-                        const msg = comebackMessages[Math.floor(Math.random() * comebackMessages.length)]
-                            .replace('{user}', `<@${message.author.id}>`);
-                        await announcementChannel.send(msg);
-                    }
-                }, 1000);
-            }
-
-            break; // stop after first issue
-        }
-    }
-});
-
-
-
-client.login(TOKEN);
