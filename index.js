@@ -195,4 +195,10 @@ client.on('interactionCreate', async interaction => {
             interaction.reply({ content: result, ephemeral: true });
         }
     }
+    client.login(TOKEN).then(() => {
+        console.log(`🤖 The Husher is online as ${client.user.tag}`);
+    }).catch(err => {
+        console.error("❌ Bot login failed:", err.message);
+    });
+    
 });
