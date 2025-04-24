@@ -71,7 +71,13 @@ const commands = [
     new SlashCommandBuilder()
         .setName('remove-offense')
         .setDescription('Manually reduce a user offense count')
-        .addUserOption(opt => opt.setName('target').setDescription('User').setRequired(true))
+        .addUserOption(opt => opt.setName('target').setDescription('User').setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('add-offense')
+        .setDescription('Manually adds a hush offense without a timeout')
+        .addUserOption(opt => opt.setName('target').setDescription('Target user').setRequired(true))
+        .addStringOption(opt => opt.setName('reason').setDescription('Reason for offense').setRequired(true))
+        .addUserOption(opt => opt.setName('corrector').setDescription('Who corrected them (optional)'))      
 ].map(cmd => cmd.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
