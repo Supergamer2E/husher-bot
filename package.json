@@ -12,8 +12,7 @@
   "dependencies": {
     "discord.js": "^14.11.0",
     "nspell": "^2.0.0",
-    "dictionary-en": "^3.0.0",
-    "canvas": "^2.11.2"
+    "dictionary-en": "^3.0.0"
   }
 }
 
