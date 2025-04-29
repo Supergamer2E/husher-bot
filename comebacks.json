@@ -1,1 +1,27 @@
-["💬 {user} is back. Hopefully the keyboard survived."]
+[
+    "🧙 {user} has returned from the Forbidden Section of chat.",
+    "💬 {user} can speak again. The silence was nice.",
+    "🛏️ {user} has left the timeout dimension.",
+    "🎮 {user} has re-entered the game.",
+    "🔔 {user} has been released. Try to behave... maybe.",
+    "🛠️ {user} has respawned at their bed.",
+    "📦 {user} retrieved their lost inventory.",
+    "🪓 {user} is back from gathering wood.",
+    "💎 {user} mined their way out.",
+    "🧱 {user} finished building their timeout shack.",
+    "🚪 {user} walked through the portal of forgiveness.",
+    "📜 {user} finished serving their ancient scroll sentence.",
+    "⚙️ {user}'s timeout machine has powered down.",
+    "🌍 {user} has rejoined the overworld.",
+    "🔧 {user} repaired their reputation.",
+    "🎯 {user} hit the bullseye of redemption.",
+    "🐷 {user} rode a pig back to freedom.",
+    "🌋 {user} climbed out of the lava pit of shame.",
+    "🚀 {user} landed safely back from the Moon of Mistakes.",
+    "🎢 {user} finished their timeout rollercoaster ride.",
+    "🛤️ {user} switched tracks back to good behavior.",
+    "🔋 {user} recharged their manners battery.",
+    "📚 {user} completed their etiquette homework.",
+    "🕳️ {user} escaped the deep dark cave of consequences.",
+    "🧨 {user} defused the bomb of bad choices."
+]

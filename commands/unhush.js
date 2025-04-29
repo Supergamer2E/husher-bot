@@ -12,8 +12,10 @@ export default async function(interaction, { userTimeouts, activeTimers, loadCus
     }
 
     try {
-        await member.timeout(null);
-    } catch {}
+        await removeTimeout(member);
+    } catch (e) {
+        console.error('Failed to remove In Timeout role:', e);
+    }
 
     if (reduce && userTimeouts[target.id]) {
         userTimeouts[target.id] = Math.max(0, userTimeouts[target.id] - 1);

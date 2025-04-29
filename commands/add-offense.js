@@ -2,12 +2,13 @@ export default async (interaction, context) => {
     const { userTimeouts, formatTime } = context;
 
     const target = interaction.options.getUser('target');
+    const amount = interaction.options.getInteger('amount') || 1;
     const reason = interaction.options.getString('reason');
     const corrector = interaction.options.getUser('corrector');
     const member = await interaction.guild.members.fetch(target.id);
 
     if (!userTimeouts[target.id]) userTimeouts[target.id] = 0;
-    userTimeouts[target.id]++;
+userTimeouts[target.id] += amount;
 
     const offenses = userTimeouts[target.id];
 
@@ -25,7 +26,7 @@ export default async (interaction, context) => {
     if (channel) await channel.send({ embeds: [embed] });
 
     await interaction.reply({
-        content: `✅ Offense recorded for ${target.tag}. Total: ${offenses}`,
-        flags: 1 << 6
+        content: `✅ Added ${amount} offense(s) to ${target.tag}. Total is now ${userTimeouts[target.id]}.`,
+        ephemeral: true
     });
 };
