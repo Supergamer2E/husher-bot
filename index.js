@@ -68,12 +68,13 @@ async function removeTimeout(member) {
 
 const userTimeouts = {};
 const activeTimers = new Map();
-let currentWeek = new Date().getWeek();
 
 Date.prototype.getWeek = function () {
   const onejan = new Date(this.getFullYear(), 0, 1);
   return Math.ceil((((this - onejan) / 86400000) + onejan.getDay() + 1) / 7);
 };
+
+let currentWeek = new Date().getWeek();
 
 const whitelist = ['lol', 'tbh', 'idk', 'discord', 'minecraft', 'kai', 'keaton', 'dylan', 'mrmeatlug', 'supergamer2e', 'chillpixl'];
 
