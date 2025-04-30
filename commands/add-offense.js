@@ -17,6 +17,10 @@ export default async function (interaction, { userTimeouts }) {
   const channel = guild.channels.cache.find(c => c.name === 'husher-announcements');
   if (!channel) console.warn('⚠️ #husher-announcements channel not found.');
 
+  console.log('📢 Available Channels:', guild.channels.cache.map(c => c.name));
+
+  console.log('🧪 Found channel:', channel?.name);
+
   for (let i = 0; i < count; i++) {
     const entry = {
       timestamp: Date.now(),
