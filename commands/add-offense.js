@@ -1,32 +1,22 @@
-export default async (interaction, context) => {
-    const { userTimeouts, formatTime } = context;
+// add-offense.js
+import { loadOffenseLog, saveOffenseLog, addOffenseToLog } from '../utils/offenseLog.js';
 
-    const target = interaction.options.getUser('target');
-    const amount = interaction.options.getInteger('amount') || 1;
-    const reason = interaction.options.getString('reason');
-    const corrector = interaction.options.getUser('corrector');
-    const member = await interaction.guild.members.fetch(target.id);
+export default async function (interaction, context) {
+  const { userTimeouts } = context;
+  const target = interaction.options.getUser('target');
+  const count = interaction.options.getInteger('count');
+  const corrector = interaction.options.getUser('corrector');
 
-    if (!userTimeouts[target.id]) userTimeouts[target.id] = 0;
-userTimeouts[target.id] += amount;
+  if (!userTimeouts[target.id]) userTimeouts[target.id] = 0;
+  userTimeouts[target.id] += count;
 
-    const offenses = userTimeouts[target.id];
+  for (let i = 0; i < count; i++) {
+    addOffenseToLog(target.id, 'Manually added offense', corrector?.id || null);
+  }
 
-    const embed = {
-        title: `📛 Offense manually added for ${target.tag}`,
-        description:
-            `**Reason:** ${reason}\n` +
-            (corrector ? `**Corrected by:** ${corrector}\n` : '') +
-            `**Offense Count Today:** ${offenses}`,
-        color: 0xFFA500, // orange
-        timestamp: new Date().toISOString()
-    };
+  await interaction.reply({
+    content: `✅ Added ${count} offense(s) to ${target.tag}.`,
+    ephemeral: true
+  });
+}
 
-    const channel = interaction.guild.channels.cache.find(c => c.name === 'husher-announcements');
-    if (channel) await channel.send({ embeds: [embed] });
-
-    await interaction.reply({
-        content: `✅ Added ${amount} offense(s) to ${target.tag}. Total is now ${userTimeouts[target.id]}.`,
-        ephemeral: true
-    });
-};

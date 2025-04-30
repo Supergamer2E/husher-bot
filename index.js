@@ -5,6 +5,12 @@
 import { Client, GatewayIntentBits, Partials, EmbedBuilder, SlashCommandBuilder, REST, Routes, PermissionsBitField } from 'discord.js';
 import fs from 'fs';
 import process from 'process';
+import handlePlead from './plead.js';
+
+import {
+  getRecentOffenses,
+  addOffenseToLog
+} from './utils/offenseLogger.js';
 
 // --- Global Variables ---
 global.courtActive = false;
@@ -209,6 +215,5 @@ async function handleAddOffense(interaction) {
   await interaction.reply({ content: `✅ Added ${count} offense(s) to ${target.tag}.`, ephemeral: true });
 }
 
-async function handlePlead(interaction) {
-  // This triggers the Court system... (continued in next messages)
-}
+
+client.login(TOKEN);
