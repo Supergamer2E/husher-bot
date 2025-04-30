@@ -1,5 +1,5 @@
 // add-offense.js
-import { loadOffenseLog, saveOffenseLog, addOffenseToLog } from '../utils/offenseLog.js';
+import { loadOffenseLog, saveOffenseLog, addOffenseToLog } from '../helpers/offenseLog.js';
 
 export default async function (interaction, context) {
   const { userTimeouts } = context;

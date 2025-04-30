@@ -1,6 +1,6 @@
 // plead.js
 import { ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ComponentType, EmbedBuilder } from 'discord.js';
-import { getRecentOffenses } from '../utils/offenseLogger.js';
+import { getRecentOffenses } from '../helpers/offenseLogger.js';
 
 export default async function handlePlead(interaction) {
   const userId = interaction.user.id;
