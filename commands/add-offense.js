@@ -43,7 +43,7 @@ export default async function (interaction, { userTimeouts }) {
         console.error('❌ Failed to send offense announcement:', err);
       }
     }
-  }
+  } 
 
   // Replace deprecated 'ephemeral' with flags: 64
   await interaction.reply({
