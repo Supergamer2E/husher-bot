@@ -10,7 +10,7 @@ import handlePlead from './commands/plead.js';
 import {
   getRecentOffenses,
   addOffenseToLog
-} from './utils/offenseLogger.js';
+} from './helpers/offenseLogger.js';
 
 // --- Global Variables ---
 global.courtActive = false;
