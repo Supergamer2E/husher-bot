@@ -28,7 +28,7 @@ export default async function (interaction, { userTimeouts }) {
       correctorId: corrector?.id || null
     };
     logOffense(target.id, entry);
-
+ 
     // Build and send announcement for each offense
     if (channel) {
       try {
