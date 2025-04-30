@@ -5,7 +5,7 @@
 import { Client, GatewayIntentBits, Partials, EmbedBuilder, SlashCommandBuilder, REST, Routes, PermissionsBitField } from 'discord.js';
 import fs from 'fs';
 import process from 'process';
-import handlePlead from './plead.js';
+import handlePlead from './commands/plead.js';
 
 import {
   getRecentOffenses,
