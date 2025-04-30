@@ -111,7 +111,9 @@ const commands = [
       .setDescription('Add offenses without timeout')
       .addUserOption(opt => opt.setName('target').setDescription('Target user').setRequired(true))
       .addIntegerOption(opt => opt.setName('count').setDescription('How many offenses to add').setRequired(true))
+      .addStringOption(opt => opt.setName('reason').setDescription('Reason for offense').setRequired(true))
       .addUserOption(opt => opt.setName('corrector').setDescription('Who corrected them (optional)')),
+
   
     new SlashCommandBuilder()
       .setName('plead')
