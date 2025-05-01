@@ -7,6 +7,7 @@ import fs from 'fs';
 import process from 'process';
 import handlePlead from './commands/plead.js';
 import addOffenseCommand from './commands/add-offense.js';
+import handleHush from './commands/hush.js';
  
 import {
   getRecentOffenses,
@@ -141,7 +142,13 @@ client.on('interactionCreate', async interaction => {
   const { commandName } = interaction;
 
   if (commandName === 'hush') {
-    await handleHush(interaction);
+    await handleHush(interaction, {
+      userTimeouts,
+      activeTimers,
+      loadCustomComebacks,
+      getTimeoutDuration,
+      formatTime
+    });
   } else if (commandName === 'add-offense') {
     await handleAddOffense(interaction);
   } else if (commandName === 'plead') {
@@ -150,67 +157,9 @@ client.on('interactionCreate', async interaction => {
 });
 
 // ============ COMMAND HANDLERS ==================
-async function handleHush(interaction) {
-    const target = interaction.options.getUser('target');
-    const member = await interaction.guild.members.fetch(target.id);
-  
-    const duration = getTimeoutDuration(target.id);
-  
-    const reasons = [
-      '⚖️ To pay for their crimes.',
-      '🔨 Justice has been served.',
-      '💥 Caught in 4K.',
-      '🧹 Swept away to the timeout realm.',
-      '🪓 Banned to the shadow realm (temporarily).',
-      '⛏️ Mining their consequences in Minecraft.',
-      '💎 Trying to steal diamonds... caught!',
-      '🚪 Sent to the Nether.',
-      '🐲 Failing to defeat the Ender Dragon.',
-      '⚡ Expelled from Hogwarts for bad spells.',
-      '🪄 Misusing a magic wand.',
-      '📚 Cursed by the Book of Spells.',
-      '🎩 Turned into a frog at the repo.',
-      '📦 Failed the Repo Test.',
-      '📜 Signed a cursed contract at the repo.',
-      '👻 Haunted by repo ghosts.',
-      '🚫 Banned from the server... briefly.',
-      '👮‍♂️ Caught by the grammar police.',
-      '🚓 Ticketed for speeding in chat.',
-      '🎭 Guilty in the court of memes.',
-      '🍕 Ate the last slice without asking.',
-      '🎮 Rage-quitting Minecraft server.',
-      '🧹 Swept into exile by the janitor bot.',
-      '🧟‍♂️ Bitten by a timeout zombie.',
-      '🛡️ Banished for bad behavior.'
-    ];
-  
-    const randomReason = reasons[Math.floor(Math.random() * reasons.length)];
-  
-    let success = true;
-    try {
-      await applyTimeout(member, duration);
-    } catch (err) {
-      success = false;
-    }
-  
-    const announcementChannel = interaction.guild.channels.cache.find(c => c.name === 'husher-announcements');
-    if (success && announcementChannel) {
-      const embed = new EmbedBuilder()
-        .setTitle(`🔇 ${target.tag} has been hushed!`)
-        .setDescription(`Reason: ${randomReason}`)
-        .setColor('Blue')
-        .setTimestamp();
-      await announcementChannel.send({ embeds: [embed] });
-    }
-  
-    await interaction.reply({ content: success ? `✅ Hushed ${target.tag}.` : `⚠️ Could not hush ${target.tag}.`, ephemeral: true });
-  }
-  
 
   async function handleAddOffense(interaction) {
     await addOffenseCommand(interaction, { userTimeouts });
   }
   
-
-
 client.login(TOKEN);
