@@ -10,7 +10,7 @@ import addOffenseCommand from './commands/add-offense.js';
 
 import {
   getRecentOffenses,
-  addOffenseToLog
+  logOffense
 } from './helpers/offenseLogger.js';
 
 // --- Global Variables ---
