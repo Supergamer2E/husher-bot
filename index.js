@@ -6,6 +6,7 @@ import { Client, GatewayIntentBits, Partials, EmbedBuilder, SlashCommandBuilder,
 import fs from 'fs';
 import process from 'process';
 import handlePlead from './commands/plead.js';
+import addOffenseCommand from './commands/add-offense.js';
 
 import {
   getRecentOffenses,
@@ -206,15 +207,10 @@ async function handleHush(interaction) {
   }
   
 
-async function handleAddOffense(interaction) {
-  const target = interaction.options.getUser('target');
-  const count = interaction.options.getInteger('count');
-
-  if (!userTimeouts[target.id]) userTimeouts[target.id] = 0;
-  userTimeouts[target.id] += count;
-
-  await interaction.reply({ content: `✅ Added ${count} offense(s) to ${target.tag}.`, ephemeral: true });
-}
+  async function handleAddOffense(interaction) {
+    await addOffenseCommand(interaction, { userTimeouts });
+  }
+  
 
 
 client.login(TOKEN);
