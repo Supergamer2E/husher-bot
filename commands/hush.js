@@ -1,11 +1,22 @@
-export default async function(interaction, { userTimeouts, activeTimers, loadCustomComebacks, getTimeoutDuration, formatTime }) {
+// File: commands/hush.js
+
+export default async function (
+    interaction,
+    { userTimeouts, activeTimers, loadCustomComebacks, getTimeoutDuration, formatTime }
+  ) {
     const target = interaction.options.getUser('target');
     const corrector = interaction.options.getUser('corrector');
     const member = await interaction.guild.members.fetch(target.id);
     const duration = getTimeoutDuration(target.id);
     const offenses = userTimeouts[target.id];
     const channel = interaction.guild.channels.cache.find(c => c.name === 'husher-announcements');
- 
+    const timeoutRole = interaction.guild.roles.cache.find(r => r.name === 'In Timeout');
+  
+    if (!timeoutRole) {
+      await interaction.reply({ content: '❌ Timeout role not found.', ephemeral: true });
+      return;
+    }
+  
     const reasons = [
       '⚖️ To pay for their crimes.',
       '🔨 Justice has been served.',
@@ -33,55 +44,67 @@ export default async function(interaction, { userTimeouts, activeTimers, loadCus
       '🧟‍♂️ Bitten by a timeout zombie.',
       '🛡️ Banished for bad behavior.'
     ];
+  
     const reason = reasons[Math.floor(Math.random() * reasons.length)];
-
+  
     let success = true;
     try {
-        await member.timeout(duration, reason);
+      await member.roles.add(timeoutRole);
     } catch {
-        success = false;
+      success = false;
     }
-
+  
     const embed = {
-        title: success ? `🔇 ${target.tag} has been hushed!` : `⚠️ Tried to hush ${target.tag}`,
-        description:
-            `**Reason:** ${reason}\n` +
-            (corrector ? `**Corrected by:** <@${corrector.id}>\n` : '') +
-            (success ? `**Time Remaining:** <t:${Math.floor((Date.now() + duration) / 1000)}:R>\n` : '*Could not apply timeout.*') +
-            `**Offense Count This Week:** ${offenses}`,
-        color: success ? 0x0000ff : 0xffa500,
-        timestamp: new Date()
+      title: success ? `🔇 ${target.tag} has been hushed!` : `⚠️ Tried to hush ${target.tag}`,
+      description:
+        `**Reason:** ${reason}\n` +
+        (corrector ? `**Corrected by:** <@${corrector.id}>\n` : '') +
+        (success ? `**Time Remaining:** <t:${Math.floor((Date.now() + duration) / 1000)}:R>\n` : '*Could not apply timeout.*') +
+        `**Offense Count This Week:** ${offenses}`,
+      color: success ? 0x0000ff : 0xffa500,
+      timestamp: new Date()
     };
-
+  
     await channel?.send({ embeds: [embed] });
-    await interaction.reply({ content: `✅ ${success ? `Hushed` : `Failed to hush`} ${target.tag}.`, ephemeral: true });
-
+    await interaction.reply({
+      content: `✅ ${success ? `Hushed` : `Failed to hush`} ${target.tag}.`,
+      ephemeral: true
+    });
+  
     if (success && channel) {
-        const timerMsg = await channel.send(`⏳ <@${target.id}> is in timeout for ${formatTime(duration / 1000)}.`);
-        let timeLeft = duration / 1000;
-
-        const interval = setInterval(async () => {
-            timeLeft--;
-            if (timeLeft > 0) {
-                try {
-                    await timerMsg.edit(`⏳ <@${target.id}> has ${formatTime(timeLeft)} remaining...`);
-                } catch {}
-            } else {
-                clearInterval(interval);
-                activeTimers.delete(target.id);
-                try { await timerMsg.delete(); } catch {}
-                const messages = loadCustomComebacks().concat([
-                    '🧙 {user} has returned from the Forbidden Section of chat.',
-                    '💬 {user} can speak again. The silence was nice.',
-                    '🛏️ {user} has left the timeout dimension.',
-                    '🎮 {user} has re-entered the game.',
-                    '🔔 {user} has been released. Try to behave... maybe.'
-                ]);
-                const comeback = messages[Math.floor(Math.random() * messages.length)].replace('{user}', `<@${target.id}>`);
-                await channel.send(comeback);
-            }
-        }, 1000);
-
-        activeTimers.set(target.id, interval);
+      const timerMsg = await channel.send(`⏳ <@${target.id}> is in timeout for ${formatTime(duration / 1000)}.`);
+      let timeLeft = duration / 1000;
+  
+      const interval = setInterval(async () => {
+        timeLeft--;
+        if (timeLeft > 0) {
+          try {
+            await timerMsg.edit(`⏳ <@${target.id}> has ${formatTime(timeLeft)} remaining...`);
+          } catch {}
+        } else {
+          clearInterval(interval);
+          activeTimers.delete(target.id);
+          try { await timerMsg.delete(); } catch {}
+  
+          try {
+            await member.roles.remove(timeoutRole);
+          } catch (err) {
+            console.error(`Failed to remove timeout role from ${member.user.tag}:`, err);
+          }
+  
+          const messages = loadCustomComebacks().concat([
+            '🧙 {user} has returned from the Forbidden Section of chat.',
+            '💬 {user} can speak again. The silence was nice.',
+            '🛏️ {user} has left the timeout dimension.',
+            '🎮 {user} has re-entered the game.',
+            '🔔 {user} has been released. Try to behave... maybe.'
+          ]);
+          const comeback = messages[Math.floor(Math.random() * messages.length)].replace('{user}', `<@${target.id}>`);
+          await channel.send(comeback);
+        }
+      }, 1000);
+  
+      activeTimers.set(target.id, interval);
     }
-}
+  }
+  
