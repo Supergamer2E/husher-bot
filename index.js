@@ -7,7 +7,7 @@ import fs from 'fs';
 import process from 'process';
 import handlePlead from './commands/plead.js';
 import addOffenseCommand from './commands/add-offense.js';
-
+ 
 import {
   getRecentOffenses,
   logOffense

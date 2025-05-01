@@ -5,7 +5,7 @@ export default async function(interaction, { userTimeouts, activeTimers, loadCus
     const duration = getTimeoutDuration(target.id);
     const offenses = userTimeouts[target.id];
     const channel = interaction.guild.channels.cache.find(c => c.name === 'husher-announcements');
-
+ 
     const reasons = [
       '⚖️ To pay for their crimes.',
       '🔨 Justice has been served.',
